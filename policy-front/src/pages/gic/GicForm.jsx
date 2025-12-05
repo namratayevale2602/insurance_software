@@ -40,7 +40,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     policy_num: "",
     insurance_company_id: "",
     policy_duration: "1YR",
-    start_dt: "",
+    start_dt: new Date().toISOString().split("T")[0], // Set to today's date
     end_dt: "",
     pay_mode: "CASH",
     cheque_num: "",
@@ -64,9 +64,15 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     branches: [],
   });
 
+  const [clientInfo, setClientInfo] = useState(null); // For showing selected client info
+  const [showClientSelector, setShowClientSelector] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [filteredClients, setFilteredClients] = useState([]);
+
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(mode === "edit");
+  const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [calculatedBalAmt, setCalculatedBalAmt] = useState("");
 
   const isEditMode = mode === "edit" || initialGicEntry;
@@ -77,6 +83,26 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     }
     fetchAllDropdowns();
     generateRegNum();
+
+    // Check for pre-filled client data from Clients table
+    const prefillData = localStorage.getItem("gic_prefill_client");
+    if (prefillData && !isEditMode) {
+      const clientData = JSON.parse(prefillData);
+      setFormData((prev) => ({
+        ...prev,
+        client_id: clientData.client_id.toString(),
+      }));
+      setClientInfo({
+        name: clientData.client_name,
+        contact: clientData.contact,
+        alt_contact: clientData.alt_contact,
+        client_type: clientData.client_type,
+        tag: clientData.tag,
+        city_name: clientData.client_city_name,
+        email: clientData.client_email,
+      });
+      localStorage.removeItem("gic_prefill_client");
+    }
   }, []);
 
   useEffect(() => {
@@ -91,36 +117,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       setFormData((prev) => ({ ...prev, bal_amt: balance.toFixed(2) }));
     }
   }, [formData.premium_amt, formData.adv_amt]);
-
-  // In GicForm.jsx, add this useEffect to check for pre-filled client data
-  useEffect(() => {
-    // Check if we have pre-filled client data from localStorage
-    const prefillClientData = localStorage.getItem("gic_prefill_client");
-
-    if (prefillClientData && !isEditMode) {
-      const clientData = JSON.parse(prefillClientData);
-
-      // Update form with client data
-      setFormData((prev) => ({
-        ...prev,
-        client_id: clientData.client_id.toString(),
-        // Add other fields you want to display (but not necessarily store)
-        prefill_data: {
-          contact: clientData.contact,
-          alt_contact: clientData.alt_contact,
-          client_type: clientData.client_type,
-          client_name: clientData.client_name,
-          tag: clientData.tag,
-          city_id: clientData.city_id,
-          city_name: clientData.client_city_name,
-          email: clientData.client_email,
-        },
-      }));
-
-      // Clear the localStorage after using it
-      localStorage.removeItem("gic_prefill_client");
-    }
-  }, []);
 
   const generateRegNum = async () => {
     try {
@@ -203,6 +199,11 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
           remark: gicData.remark || "",
           form_status: gicData.form_status || "PENDING",
         });
+
+        // If client_id exists, fetch client info
+        if (gicData.client_id) {
+          fetchClientInfo(gicData.client_id);
+        }
       }
     } catch (error) {
       console.error("Error fetching GIC entry:", error);
@@ -211,7 +212,34 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     }
   };
 
+  const fetchClientInfo = async (clientId) => {
+    try {
+      // This assumes you have a way to get client info by ID
+      const response = await GicService.getAllClients();
+      if (response.data.success) {
+        const allClients = response.data.data.data || response.data.data;
+        const client = allClients.find(
+          (c) => c.id.toString() === clientId.toString()
+        );
+        if (client) {
+          setClientInfo({
+            name: client.client_name,
+            contact: client.contact,
+            alt_contact: client.alt_contact,
+            client_type: client.client_type,
+            tag: client.tag,
+            city_name: client.city?.value || client.city_name,
+            email: client.email,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching client info:", error);
+    }
+  };
+
   const fetchAllDropdowns = async () => {
+    setDropdownsLoading(true);
     try {
       const [
         clientsRes,
@@ -224,19 +252,23 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
         banksRes,
         branchesRes,
       ] = await Promise.all([
-        GicService.getClients(),
+        GicService.getClients().catch(() =>
+          GicService.getAllClients({ per_page: 50 })
+        ),
         GicService.getDropdownOptions("vehicle_types"),
         GicService.getDropdownOptions("vehicles"),
         GicService.getDropdownOptions("nonmotor_policy_types"),
-        GicService.getDropdownOptions("nonmotor_policy_subtypes"),
+        GicService.getDropdownOptions("nonmotor_policy_subtype"),
         GicService.getDropdownOptions("advisers"),
         GicService.getDropdownOptions("insurance_companies"),
-        GicService.getDropdownOptions("banks"),
-        GicService.getDropdownOptions("branches"),
+        GicService.getDropdownOptions("bank"),
+        GicService.getDropdownOptions("branch"),
       ]);
 
       setDropdowns({
-        clients: clientsRes.data.success ? clientsRes.data.data : [],
+        clients: clientsRes.data.success
+          ? clientsRes.data.data.data || clientsRes.data.data
+          : [],
         vehicleTypes: vehicleTypesRes.data.success
           ? vehicleTypesRes.data.data
           : [],
@@ -256,6 +288,28 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       });
     } catch (error) {
       console.error("Error fetching dropdowns:", error);
+    } finally {
+      setDropdownsLoading(false);
+    }
+  };
+
+  const searchClients = async (query) => {
+    if (!query.trim()) {
+      setFilteredClients([]);
+      return;
+    }
+
+    try {
+      // If you have a search endpoint, use it. Otherwise filter locally.
+      const response = await GicService.getAllClients({
+        search: query,
+        per_page: 20,
+      });
+      if (response.data.success) {
+        setFilteredClients(response.data.data.data || response.data.data);
+      }
+    } catch (error) {
+      console.error("Error searching clients:", error);
     }
   };
 
@@ -263,60 +317,71 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     const { name, value } = e.target;
     let processedValue = value;
 
-    // Auto-uppercase for policy number and MV number
     if (name === "policy_num" || name === "mv_num" || name === "cheque_num") {
       processedValue = value.toUpperCase();
     }
 
-    setFormData((prev) => ({ ...prev, [name]: processedValue }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: processedValue,
+    }));
 
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
 
-    // Calculate end date based on start date and policy duration
-    if (
-      (name === "start_dt" || name === "policy_duration") &&
-      formData.start_dt
-    ) {
-      calculateEndDate(
-        name === "start_dt" ? value : formData.start_dt,
-        name === "policy_duration" ? value : formData.policy_duration
-      );
+    // Recalculate end date only for 1YR policy duration
+    if (name === "start_dt" || name === "policy_duration") {
+      const startDate = name === "start_dt" ? value : formData.start_dt;
+      const duration =
+        name === "policy_duration" ? value : formData.policy_duration;
+
+      if (startDate && duration === "1YR") {
+        const endDate = calculateEndDate(startDate, duration);
+        setFormData((prev) => ({ ...prev, end_dt: endDate }));
+      } else if (duration !== "1YR") {
+        // Clear end date for LONG and SHORT durations
+        setFormData((prev) => ({ ...prev, end_dt: "" }));
+      }
     }
   };
 
+  // Update the calculateEndDate function to handle policy duration correctly
   const calculateEndDate = (startDate, duration) => {
-    if (!startDate) return;
+    if (!startDate) return "";
 
-    const start = new Date(startDate);
-    let end = new Date(start);
-
-    switch (duration) {
-      case "1YR":
-        end.setFullYear(end.getFullYear() + 1);
-        end.setDate(end.getDate() - 1); // Policy ends day before anniversary
-        break;
-      case "LONG":
-        end.setFullYear(end.getFullYear() + 3); // Example: 3 years for long term
-        break;
-      case "SHORT":
-        end.setMonth(end.getMonth() + 6); // Example: 6 months for short term
-        break;
-      default:
-        end.setFullYear(end.getFullYear() + 1);
-        end.setDate(end.getDate() - 1);
+    // Only calculate for 1YR policy duration
+    if (duration === "1YR") {
+      const start = new Date(startDate);
+      const end = new Date(start);
+      end.setFullYear(end.getFullYear() + 1);
+      end.setDate(end.getDate() - 1); // Policy ends day before anniversary
+      return end.toISOString().split("T")[0];
     }
 
-    const formattedEndDate = end.toISOString().split("T")[0];
-    setFormData((prev) => ({ ...prev, end_dt: formattedEndDate }));
+    // For LONG and SHORT, return empty or let user input manually
+    return "";
   };
+
+  // Update the useEffect for initial calculation
+  useEffect(() => {
+    // Calculate end date only for 1YR policy duration on form load
+    if (
+      formData.start_dt &&
+      formData.policy_duration === "1YR" &&
+      !formData.end_dt
+    ) {
+      const endDate = calculateEndDate(
+        formData.start_dt,
+        formData.policy_duration
+      );
+      setFormData((prev) => ({ ...prev, end_dt: endDate }));
+    }
+  }, []);
 
   const validateForm = () => {
     const newErrors = {};
 
-    // Required fields
     if (!formData.client_id) newErrors.client_id = "Client is required";
     if (!formData.premium_amt)
       newErrors.premium_amt = "Premium amount is required";
@@ -329,7 +394,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       newErrors.adviser_name_id = "Adviser name is required";
     if (!formData.start_dt) newErrors.start_dt = "Start date is required";
 
-    // Motor-specific validations
     if (formData.policy_type === "MOTOR") {
       if (!formData.motor_subtype)
         newErrors.motor_subtype = "Motor subtype is required";
@@ -339,7 +403,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       if (!formData.vehicle_id) newErrors.vehicle_id = "Vehicle is required";
     }
 
-    // Non-motor validations
     if (formData.policy_type === "NONMOTOR") {
       if (!formData.nonmotor_policy_type_id)
         newErrors.nonmotor_policy_type_id = "Policy type is required";
@@ -347,7 +410,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
         newErrors.nonmotor_policy_subtype_id = "Policy subtype is required";
     }
 
-    // Payment validations
     if (formData.pay_mode === "CHEQUE" || formData.pay_mode === "RTGS/NEFT") {
       if (!formData.bank_name_id)
         newErrors.bank_name_id = "Bank name is required";
@@ -357,7 +419,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       }
     }
 
-    // Amount validations
     const premium = parseFloat(formData.premium_amt) || 0;
     const advance = parseFloat(formData.adv_amt) || 0;
     if (advance > premium) {
@@ -429,8 +490,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
         form_status: formData.form_status,
       };
 
-      console.log("Submitting GIC data:", submitData);
-
       if (isEditMode) {
         const idToUpdate = id || initialGicEntry?.id;
         await GicService.updateGic(idToUpdate, submitData);
@@ -456,7 +515,26 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     navigate("/gic-entries");
   };
 
-  if (initialLoading) {
+  const selectClient = (client) => {
+    setFormData((prev) => ({
+      ...prev,
+      client_id: client.id.toString(),
+    }));
+    setClientInfo({
+      name: client.client_name,
+      contact: client.contact,
+      alt_contact: client.alt_contact,
+      client_type: client.client_type,
+      tag: client.tag,
+      city_name: client.city?.value || client.city_name,
+      email: client.email,
+    });
+    setShowClientSelector(false);
+    setClientSearch("");
+    setFilteredClients([]);
+  };
+
+  if (initialLoading || dropdownsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -515,8 +593,8 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       />
                     </div>
 
-                    {/* Display client information if we have prefill data */}
-                    {formData.prefill_data && (
+                    {/* Display client information if we have clientInfo */}
+                    {clientInfo && (
                       <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
                         <div className="text-sm text-blue-800 font-medium mb-1">
                           Client Information:
@@ -525,26 +603,40 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           <div className="grid grid-cols-2 gap-1">
                             <div>
                               <span className="font-medium">Name:</span>{" "}
-                              {formData.prefill_data.client_name}
+                              {clientInfo.name}
                             </div>
                             <div>
                               <span className="font-medium">Contact:</span>{" "}
-                              {formData.prefill_data.contact}
+                              {clientInfo.contact}
                             </div>
+                            {clientInfo.alt_contact && (
+                              <div>
+                                <span className="font-medium">
+                                  Alt Contact:
+                                </span>{" "}
+                                {clientInfo.alt_contact}
+                              </div>
+                            )}
                             <div>
                               <span className="font-medium">Type:</span>{" "}
-                              {formData.prefill_data.client_type === "CORPORATE"
+                              {clientInfo.client_type === "CORPORATE"
                                 ? "Corporate"
                                 : "Individual"}
                             </div>
                             <div>
                               <span className="font-medium">Tag:</span>{" "}
-                              {formData.prefill_data.tag}
+                              {clientInfo.tag}
                             </div>
-                            {formData.prefill_data.city_name && (
+                            {clientInfo.city_name && (
                               <div>
                                 <span className="font-medium">City:</span>{" "}
-                                {formData.prefill_data.city_name}
+                                {clientInfo.city_name}
+                              </div>
+                            )}
+                            {clientInfo.email && (
+                              <div>
+                                <span className="font-medium">Email:</span>{" "}
+                                {clientInfo.email}
                               </div>
                             )}
                           </div>
@@ -969,8 +1061,8 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="1YR">1 Year</option>
-                      <option value="LONG">Long Term</option>
-                      <option value="SHORT">Short Term</option>
+                      <option value="LONG">Long Term (3 Years)</option>
+                      <option value="SHORT">Short Term (6 Months)</option>
                     </select>
                   </div>
 
@@ -996,15 +1088,39 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      End Date
+                      End Date{" "}
+                      {formData.policy_duration === "1YR"
+                        ? "(Auto-calculated)"
+                        : ""}
                     </label>
                     <input
                       type="date"
                       name="end_dt"
                       value={formData.end_dt}
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                      onChange={handleChange}
+                      readOnly={formData.policy_duration === "1YR"}
+                      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                        formData.policy_duration === "1YR"
+                          ? "bg-gray-50"
+                          : "bg-white"
+                      } ${
+                        errors.end_dt ? "border-red-500" : "border-gray-300"
+                      }`}
                     />
+                    {formData.policy_duration === "1YR" ? (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Automatically calculated based on start date
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Please select the end date manually
+                      </p>
+                    )}
+                    {errors.end_dt && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.end_dt}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
