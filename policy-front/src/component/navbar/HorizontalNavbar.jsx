@@ -24,7 +24,7 @@ const HorizontalNavbar = () => {
   //   };
 
   return (
-    <nav className="bg-[#1da5e9] text-white shadow-lg">
+    <nav className="bg-[#1da5e9] text-white shadow-lg sticky top-0 z-1">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo and Desktop Toggle */}

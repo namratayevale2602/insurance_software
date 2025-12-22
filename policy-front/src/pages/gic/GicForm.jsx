@@ -17,8 +17,8 @@ import {
   Percent,
 } from "lucide-react";
 
-const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
-  const { id } = useParams();
+const GicForm = ({ mode = "create" }) => {
+  const { id } = useParams(); // Get ID from URL for edit mode
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     reg_num: "",
@@ -40,7 +40,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     policy_num: "",
     insurance_company_id: "",
     policy_duration: "1YR",
-    start_dt: new Date().toISOString().split("T")[0], // Set to today's date
+    start_dt: new Date().toISOString().split("T")[0],
     end_dt: "",
     pay_mode: "CASH",
     cheque_num: "",
@@ -64,25 +64,25 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     branches: [],
   });
 
-  const [clientInfo, setClientInfo] = useState(null); // For showing selected client info
-  const [showClientSelector, setShowClientSelector] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
-  const [filteredClients, setFilteredClients] = useState([]);
-
+  const [clientInfo, setClientInfo] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(mode === "edit");
   const [dropdownsLoading, setDropdownsLoading] = useState(false);
   const [calculatedBalAmt, setCalculatedBalAmt] = useState("");
 
-  const isEditMode = mode === "edit" || initialGicEntry;
+  const isEditMode = mode === "edit";
 
   useEffect(() => {
-    if (isEditMode) {
+    console.log("Mode:", mode, "ID:", id); // Debug log
+
+    if (isEditMode && id) {
       fetchGicData();
+    } else {
+      generateRegNum();
     }
+
     fetchAllDropdowns();
-    generateRegNum();
 
     // Check for pre-filled client data from Clients table
     const prefillData = localStorage.getItem("gic_prefill_client");
@@ -103,7 +103,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
       });
       localStorage.removeItem("gic_prefill_client");
     }
-  }, []);
+  }, [mode, id]);
 
   useEffect(() => {
     // Calculate balance amount when premium or advance amount changes
@@ -112,7 +112,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     const balance = premium - advance;
     setCalculatedBalAmt(balance.toFixed(2));
 
-    // Update form data if not in edit mode
+    // Update form data if not in edit mode or if user manually changed it
     if (!isEditMode) {
       setFormData((prev) => ({ ...prev, bal_amt: balance.toFixed(2) }));
     }
@@ -134,87 +134,117 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
 
   const fetchGicData = async () => {
     try {
-      let gicData = initialGicEntry;
+      console.log("Fetching GIC data for ID:", id);
 
-      if (!gicData && id) {
+      // Option 1: If you have a dedicated endpoint for single entry
+      try {
         const response = await GicService.getGicById(id);
+        console.log("GIC data response:", response.data);
+
         if (response.data.success) {
-          gicData = response.data.data;
+          const gicData = response.data.data;
+          setFormDataFromResponse(gicData);
         }
-      }
+      } catch (error) {
+        console.log("Direct endpoint failed, trying alternative...");
 
-      if (gicData) {
-        const formatDateForInput = (dateString) => {
-          if (!dateString) return "";
-          try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return "";
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, "0");
-            const day = String(date.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-          } catch (e) {
-            console.error("Error parsing date:", dateString, e);
-            return "";
+        // Option 2: If no direct endpoint, fetch all and filter by ID
+        const allResponse = await GicService.getAllGicEntries();
+        if (allResponse.data.success) {
+          const allEntries = allResponse.data.data.data || [];
+          const gicData = allEntries.find(
+            (entry) => entry.id.toString() === id.toString()
+          );
+
+          if (gicData) {
+            console.log("Found GIC data from list:", gicData);
+            setFormDataFromResponse(gicData);
+          } else {
+            console.error("GIC entry not found with ID:", id);
+            alert("GIC entry not found");
+            navigate("/gic-entries");
           }
-        };
-
-        const formatTimeForInput = (timeString) => {
-          if (!timeString) return new Date().toTimeString().slice(0, 5);
-          return timeString.slice(0, 5);
-        };
-
-        setFormData({
-          reg_num: gicData.reg_num?.toString() || "",
-          client_id: gicData.client_id?.toString() || "",
-          time: formatTimeForInput(gicData.time),
-          date:
-            formatDateForInput(gicData.date) ||
-            new Date().toISOString().split("T")[0],
-          policy_type: gicData.policy_type || "MOTOR",
-          motor_subtype: gicData.motor_subtype || "A",
-          mv_num: gicData.mv_num || "",
-          vehicle_type_id: gicData.vehicle_type_id?.toString() || "",
-          vehicle_id: gicData.vehicle_id?.toString() || "",
-          nonmotor_policy_type_id:
-            gicData.nonmotor_policy_type_id?.toString() || "",
-          nonmotor_policy_subtype_id:
-            gicData.nonmotor_policy_subtype_id?.toString() || "",
-          premium_amt: gicData.premium_amt?.toString() || "",
-          adv_amt: gicData.adv_amt?.toString() || "",
-          bal_amt: gicData.bal_amt?.toString() || "",
-          recov_amt: gicData.recov_amt?.toString() || "",
-          adviser_name_id: gicData.adviser_name_id?.toString() || "",
-          policy_num: gicData.policy_num || "",
-          insurance_company_id: gicData.insurance_company_id?.toString() || "",
-          policy_duration: gicData.policy_duration || "1YR",
-          start_dt: formatDateForInput(gicData.start_dt),
-          end_dt: formatDateForInput(gicData.end_dt),
-          pay_mode: gicData.pay_mode || "CASH",
-          cheque_num: gicData.cheque_num || "",
-          bank_name_id: gicData.bank_name_id?.toString() || "",
-          branch_name_id: gicData.branch_name_id?.toString() || "",
-          cheque_dt: formatDateForInput(gicData.cheque_dt),
-          responsibility: gicData.responsibility || "",
-          remark: gicData.remark || "",
-          form_status: gicData.form_status || "PENDING",
-        });
-
-        // If client_id exists, fetch client info
-        if (gicData.client_id) {
-          fetchClientInfo(gicData.client_id);
         }
       }
     } catch (error) {
       console.error("Error fetching GIC entry:", error);
+      alert("Error loading GIC entry. Redirecting to list.");
+      navigate("/gic-entries");
     } finally {
       setInitialLoading(false);
     }
   };
 
+  // Helper function to set form data from response
+  const setFormDataFromResponse = (gicData) => {
+    const formatDateForInput = (dateString) => {
+      if (!dateString) return "";
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return "";
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        console.error("Error parsing date:", dateString, e);
+        return "";
+      }
+    };
+
+    const formatTimeForInput = (timeString) => {
+      if (!timeString) return new Date().toTimeString().slice(0, 5);
+      return timeString.slice(0, 5);
+    };
+
+    // Format the data for form
+    const formattedData = {
+      reg_num: gicData.reg_num?.toString() || "",
+      client_id: gicData.client_id?.toString() || "",
+      time: formatTimeForInput(gicData.time),
+      date:
+        formatDateForInput(gicData.date) ||
+        new Date().toISOString().split("T")[0],
+      policy_type: gicData.policy_type || "MOTOR",
+      motor_subtype: gicData.motor_subtype || "A",
+      mv_num: gicData.mv_num || "",
+      vehicle_type_id: gicData.vehicle_type_id?.toString() || "",
+      vehicle_id: gicData.vehicle_id?.toString() || "",
+      nonmotor_policy_type_id:
+        gicData.nonmotor_policy_type_id?.toString() || "",
+      nonmotor_policy_subtype_id:
+        gicData.nonmotor_policy_subtype_id?.toString() || "",
+      premium_amt: gicData.premium_amt?.toString() || "",
+      adv_amt: gicData.adv_amt?.toString() || "",
+      bal_amt: gicData.bal_amt?.toString() || "",
+      recov_amt: gicData.recov_amt?.toString() || "",
+      adviser_name_id: gicData.adviser_name_id?.toString() || "",
+      policy_num: gicData.policy_num || "",
+      insurance_company_id: gicData.insurance_company_id?.toString() || "",
+      policy_duration: gicData.policy_duration || "1YR",
+      start_dt: formatDateForInput(gicData.start_dt),
+      end_dt: formatDateForInput(gicData.end_dt),
+      pay_mode: gicData.pay_mode || "CASH",
+      cheque_num: gicData.cheque_num || "",
+      bank_name_id: gicData.bank_name_id?.toString() || "",
+      branch_name_id: gicData.branch_name_id?.toString() || "",
+      cheque_dt: formatDateForInput(gicData.cheque_dt),
+      responsibility: gicData.responsibility || "",
+      remark: gicData.remark || "",
+      form_status: gicData.form_status || "PENDING",
+    };
+
+    console.log("Formatted data for form:", formattedData);
+    setFormData(formattedData);
+
+    // Fetch client info if client_id exists
+    if (gicData.client_id) {
+      fetchClientInfo(gicData.client_id.toString());
+    }
+  };
+
   const fetchClientInfo = async (clientId) => {
     try {
-      // This assumes you have a way to get client info by ID
       const response = await GicService.getAllClients();
       if (response.data.success) {
         const allClients = response.data.data.data || response.data.data;
@@ -252,9 +282,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
         banksRes,
         branchesRes,
       ] = await Promise.all([
-        GicService.getClients().catch(() =>
-          GicService.getAllClients({ per_page: 50 })
-        ),
+        GicService.getAllClients({ per_page: 50 }), // Remove the .catch() part
         GicService.getDropdownOptions("vehicle_types"),
         GicService.getDropdownOptions("vehicles"),
         GicService.getDropdownOptions("nonmotor_policy_types"),
@@ -293,26 +321,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     }
   };
 
-  const searchClients = async (query) => {
-    if (!query.trim()) {
-      setFilteredClients([]);
-      return;
-    }
-
-    try {
-      // If you have a search endpoint, use it. Otherwise filter locally.
-      const response = await GicService.getAllClients({
-        search: query,
-        per_page: 20,
-      });
-      if (response.data.success) {
-        setFilteredClients(response.data.data.data || response.data.data);
-      }
-    } catch (error) {
-      console.error("Error searching clients:", error);
-    }
-  };
-
   const handleChange = (e) => {
     const { name, value } = e.target;
     let processedValue = value;
@@ -346,7 +354,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
     }
   };
 
-  // Update the calculateEndDate function to handle policy duration correctly
   const calculateEndDate = (startDate, duration) => {
     if (!startDate) return "";
 
@@ -431,11 +438,19 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("Form submit triggered, mode:", mode);
 
-    if (!validateForm()) return;
+    // First validate with frontend validation
+    if (!validateForm()) {
+      console.log("Frontend validation failed");
+      return;
+    }
 
     setLoading(true);
+    setErrors({}); // Clear previous errors
+
     try {
+      // Prepare data for submission
       const submitData = {
         reg_num: parseInt(formData.reg_num),
         client_id: parseInt(formData.client_id),
@@ -490,22 +505,69 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
         form_status: formData.form_status,
       };
 
+      console.log("Submitting data:", submitData);
+
+      let response;
       if (isEditMode) {
-        const idToUpdate = id || initialGicEntry?.id;
-        await GicService.updateGic(idToUpdate, submitData);
+        response = await GicService.updateGic(id, submitData);
+        console.log("Update response:", response);
         alert("GIC entry updated successfully");
       } else {
-        await GicService.createGic(submitData);
+        response = await GicService.createGic(submitData);
+        console.log("Create response:", response);
         alert("GIC entry created successfully");
       }
 
+      // Navigate back to entries list
       navigate("/gic-entries");
     } catch (error) {
       console.error("Error saving GIC entry:", error);
+      console.error("Full error object:", error);
       console.error("Error response:", error.response?.data);
-      const errorMessage =
-        error.response?.data?.message || "Error saving GIC entry";
-      alert(errorMessage);
+
+      // Handle validation errors from backend
+      if (error.response && error.response.data && error.response.data.errors) {
+        const backendErrors = error.response.data.errors;
+        console.log("Backend validation errors:", backendErrors);
+
+        // Map backend errors to form field errors
+        const newErrors = {};
+        Object.keys(backendErrors).forEach((fieldName) => {
+          if (
+            Array.isArray(backendErrors[fieldName]) &&
+            backendErrors[fieldName].length > 0
+          ) {
+            // Take the first error message for each field
+            newErrors[fieldName] = backendErrors[fieldName][0];
+          }
+        });
+
+        setErrors(newErrors);
+
+        // Scroll to the first error
+        if (Object.keys(newErrors).length > 0) {
+          const firstErrorField = Object.keys(newErrors)[0];
+          setTimeout(() => {
+            const errorElement = document.querySelector(
+              `[name="${firstErrorField}"]`
+            );
+            if (errorElement) {
+              errorElement.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+              errorElement.focus();
+            }
+          }, 100);
+        }
+      } else {
+        // Handle other errors
+        const errorMessage =
+          error.response?.data?.message ||
+          error.message ||
+          "Error saving GIC entry";
+        alert(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -513,25 +575,6 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
 
   const handleCancel = () => {
     navigate("/gic-entries");
-  };
-
-  const selectClient = (client) => {
-    setFormData((prev) => ({
-      ...prev,
-      client_id: client.id.toString(),
-    }));
-    setClientInfo({
-      name: client.client_name,
-      contact: client.contact,
-      alt_contact: client.alt_contact,
-      client_type: client.client_type,
-      tag: client.tag,
-      city_name: client.city?.value || client.city_name,
-      email: client.email,
-    });
-    setShowClientSelector(false);
-    setClientSearch("");
-    setFilteredClients([]);
   };
 
   if (initialLoading || dropdownsLoading) {
@@ -570,6 +613,35 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
 
         <form onSubmit={handleSubmit}>
           <div className="p-6">
+            {/* Error Summary */}
+            {Object.keys(errors).length > 0 && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center text-red-800 mb-2">
+                  <svg
+                    className="mr-2 h-5 w-5"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <h3 className="font-semibold">
+                    Please fix the following errors:
+                  </h3>
+                </div>
+                <ul className="list-disc pl-5 text-red-700 text-sm">
+                  {Object.entries(errors).map(([field, message]) => (
+                    <li key={field} className="mb-1">
+                      <span className="font-medium">{field}:</span> {message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Basic Information */}
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -589,7 +661,11 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                         type="text"
                         value={formData.client_id}
                         readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700"
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                          errors.client_id
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 bg-gray-50"
+                        } text-gray-700`}
                       />
                     </div>
 
@@ -727,7 +803,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           onChange={handleChange}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                             errors.motor_subtype
-                              ? "border-red-500"
+                              ? "border-red-500 bg-red-50"
                               : "border-gray-300"
                           }`}
                         >
@@ -753,7 +829,9 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           value={formData.mv_num}
                           onChange={handleChange}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                            errors.mv_num ? "border-red-500" : "border-gray-300"
+                            errors.mv_num
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300"
                           }`}
                           placeholder="MH12AB1234"
                         />
@@ -775,7 +853,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                             onChange={handleChange}
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                               errors.vehicle_type_id
-                                ? "border-red-500"
+                                ? "border-red-500 bg-red-50"
                                 : "border-gray-300"
                             }`}
                           >
@@ -803,7 +881,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                             onChange={handleChange}
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                               errors.vehicle_id
-                                ? "border-red-500"
+                                ? "border-red-500 bg-red-50"
                                 : "border-gray-300"
                             }`}
                           >
@@ -835,7 +913,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                             onChange={handleChange}
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                               errors.nonmotor_policy_type_id
-                                ? "border-red-500"
+                                ? "border-red-500 bg-red-50"
                                 : "border-gray-300"
                             }`}
                           >
@@ -863,7 +941,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                             onChange={handleChange}
                             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                               errors.nonmotor_policy_subtype_id
-                                ? "border-red-500"
+                                ? "border-red-500 bg-red-50"
                                 : "border-gray-300"
                             }`}
                           >
@@ -904,7 +982,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                         errors.premium_amt
-                          ? "border-red-500"
+                          ? "border-red-500 bg-red-50"
                           : "border-gray-300"
                       }`}
                     />
@@ -926,7 +1004,9 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       value={formData.adv_amt}
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                        errors.adv_amt ? "border-red-500" : "border-gray-300"
+                        errors.adv_amt
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300"
                       }`}
                     />
                     {errors.adv_amt && (
@@ -966,6 +1046,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                   </div>
                 </div>
               </div>
+
               {/* Policy Details */}
               <div className="pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-700 mb-4">
@@ -983,7 +1064,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                         errors.adviser_name_id
-                          ? "border-red-500"
+                          ? "border-red-500 bg-red-50"
                           : "border-gray-300"
                       }`}
                     >
@@ -1011,7 +1092,9 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       value={formData.policy_num}
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                        errors.policy_num ? "border-red-500" : "border-gray-300"
+                        errors.policy_num
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300"
                       }`}
                       placeholder="POL123456789"
                     />
@@ -1032,7 +1115,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                         errors.insurance_company_id
-                          ? "border-red-500"
+                          ? "border-red-500 bg-red-50"
                           : "border-gray-300"
                       }`}
                     >
@@ -1076,7 +1159,9 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                       value={formData.start_dt}
                       onChange={handleChange}
                       className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                        errors.start_dt ? "border-red-500" : "border-gray-300"
+                        errors.start_dt
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300"
                       }`}
                     />
                     {errors.start_dt && (
@@ -1104,7 +1189,9 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           ? "bg-gray-50"
                           : "bg-white"
                       } ${
-                        errors.end_dt ? "border-red-500" : "border-gray-300"
+                        errors.end_dt
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300"
                       }`}
                     />
                     {formData.policy_duration === "1YR" ? (
@@ -1124,6 +1211,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                   </div>
                 </div>
               </div>
+
               {/* Payment Information */}
               <div className="pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -1164,7 +1252,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           onChange={handleChange}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                             errors.cheque_num
-                              ? "border-red-500"
+                              ? "border-red-500 bg-red-50"
                               : "border-gray-300"
                           }`}
                           placeholder="Cheque number"
@@ -1186,7 +1274,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           onChange={handleChange}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                             errors.bank_name_id
-                              ? "border-red-500"
+                              ? "border-red-500 bg-red-50"
                               : "border-gray-300"
                           }`}
                         >
@@ -1234,7 +1322,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                           onChange={handleChange}
                           className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                             errors.cheque_dt
-                              ? "border-red-500"
+                              ? "border-red-500 bg-red-50"
                               : "border-gray-300"
                           }`}
                         />
@@ -1248,6 +1336,7 @@ const GicForm = ({ mode = "create", gicEntry: initialGicEntry = null }) => {
                   )}
                 </div>
               </div>
+
               {/* Additional Information */}
               <div className="pt-6 border-t border-gray-200">
                 <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">

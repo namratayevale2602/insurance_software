@@ -31,10 +31,11 @@ const VerticalSidebar = () => {
   const menuItems = [
     { path: "/", icon: FaHome, label: "Home" },
     { path: "/clients", icon: FaUser, label: "Client" },
-    { path: "/settings", icon: FaCog, label: "Settings" },
-    { path: "/messages", icon: FaEnvelope, label: "Messages" },
-    { path: "/reports", icon: FaChartBar, label: "Reports" },
-    { path: "/about", icon: FaInfoCircle, label: "About" },
+    { path: "/gic-entries", icon: FaCog, label: "GIC" },
+    { path: "/lic-entries", icon: FaEnvelope, label: "LIC" },
+    { path: "/rto-entries", icon: FaChartBar, label: "RTO" },
+    { path: "/bmds-entries", icon: FaInfoCircle, label: "BMDS" },
+    { path: "/mf-entries", icon: FaInfoCircle, label: "MF" },
   ];
 
   return (

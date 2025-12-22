@@ -5,7 +5,7 @@ const GicService = {
   // GIC Entry operations
   createGic: (data) => axiosInstance.post("/creategic", data),
 
-  getGicById: (id) => axiosInstance.get(`/gic-entries/${id}`),
+  getGicById: (id) => axiosInstance.get(`/gicEntries/${id}`), // Fixed route
 
   updateGic: (id, data) => axiosInstance.put(`/updategic/${id}`, data),
 
@@ -13,8 +13,33 @@ const GicService = {
 
   getAllGicEntries: (params = {}) => {
     const queryParams = new URLSearchParams(params).toString();
-    return axiosInstance.get(`/gic${queryParams ? `?${queryParams}` : ""}`);
+    return axiosInstance.get(
+      `/gicEntries${queryParams ? `?${queryParams}` : ""}`
+    );
   },
+
+  getFilterOptions: () => axiosInstance.get("/gicEntries/filter-options"),
+
+  getExpiryReport: (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    return axiosInstance.get(
+      `/gicEntries/expiry-report${queryParams ? `?${queryParams}` : ""}`
+    );
+  },
+
+  getStatistics: () => axiosInstance.get("/gic-entries/stats"),
+
+  getFilterStats: (params = {}) => {
+    const queryParams = new URLSearchParams(params).toString();
+    return axiosInstance.get(
+      `/gicEntries/filter-stats${queryParams ? `?${queryParams}` : ""}`
+    );
+  },
+
+  // getGicById: (id) => {
+  //   // Try to use your list endpoint with filtering, or create a new endpoint
+  //   return axiosInstance.get(`/gicEntries/${id}`);
+  // },
 
   getNextRegNum: () => axiosInstance.get("/gic-entries/next-reg-num"),
 
@@ -38,9 +63,6 @@ const GicService = {
   // Search GIC entries
   searchGicEntries: (searchParams) =>
     axiosInstance.get("/gic/search", { params: searchParams }),
-
-  // Get statistics
-  getStatistics: () => axiosInstance.get("/gic/statistics"),
 
   // Export to Excel
   exportToExcel: (params) =>

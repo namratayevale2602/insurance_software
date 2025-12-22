@@ -17,6 +17,15 @@ import Clients from "./pages/client/Clients";
 import ClientProfile from "./pages/client/ClientProfile";
 import ClientForm from "./pages/client/ClientForm";
 import GicForm from "./pages/gic/GicForm";
+import Gic from "./pages/gic/Gic";
+import LicForm from "./pages/lic/LicForm";
+import Lic from "./pages/lic/Lic";
+import RtoForm from "./pages/rto/RtoForm";
+import Rto from "./pages/rto/Rto";
+import BmdsForm from "./pages/bmds/BmdsForm";
+import Bmds from "./pages/bmds/Bmds";
+import Mf from "./pages/mf/Mf";
+import MfForm from "./pages/mf/MfForm";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -31,7 +40,6 @@ const router = createBrowserRouter(
         }
       >
         <Route index element={<Home />} />
-
         {/* clients path  */}
         <Route path="/clients" element={<Clients />} />
         <Route path="/clients/profile/:clientId" element={<ClientProfile />} />
@@ -40,9 +48,40 @@ const router = createBrowserRouter(
           path="/clients/edit/:clientId"
           element={<ClientForm mode="edit" />}
         />
-
         {/* GIC Path  */}
-        <Route path="/gic-entries/create" element={<GicForm />} />
+        <Route path="/gic-entries/create" element={<GicForm mode="create" />} />
+        <Route path="/gic-entries/edit/:id" element={<GicForm mode="edit" />} />
+        <Route path="/gic-entries" element={<Gic />} />
+
+        {/* LIC Path  */}
+        <Route path="/lic-entries" element={<Lic />} />
+        <Route path="/lic-entries/create" element={<LicForm mode="create" />} />
+        <Route path="/lic-entries/edit/:id" element={<LicForm mode="edit" />} />
+        <Route path="/lic-entries/:id" element={<LicForm mode="view" />} />
+
+        {/* RTO Path  */}
+        <Route path="/rto-entries" element={<Rto />} />
+        <Route path="/rto-entries/create" element={<RtoForm mode="create" />} />
+        <Route path="/rto-entries/edit/:id" element={<RtoForm mode="edit" />} />
+        <Route path="/rto-entries/:id" element={<RtoForm mode="view" />} />
+
+        {/* BMDS Path  */}
+        <Route path="/bmds-entries" element={<Bmds />} />
+        <Route
+          path="/bmds-entries/create"
+          element={<BmdsForm mode="create" />}
+        />
+        <Route
+          path="/bmds-entries/edit/:id"
+          element={<BmdsForm mode="edit" />}
+        />
+        <Route path="/bmds-entries/:id" element={<BmdsForm mode="view" />} />
+
+        {/* MF Path  */}
+        <Route path="/mf-entries" element={<Mf />} />
+        <Route path="/mf-entries/create" element={<MfForm mode="create" />} />
+        <Route path="/mf-entries/edit/:id" element={<MfForm mode="edit" />} />
+        <Route path="/mf-entries/:id" element={<MfForm mode="view" />} />
       </Route>
     </>
   )

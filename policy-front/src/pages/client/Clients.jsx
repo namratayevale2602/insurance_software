@@ -220,6 +220,34 @@ const Clients = () => {
     navigate("/rto-entries/create");
   };
 
+  // Redirect to BMDS Form
+  const redirectToBmdsForm = (client) => {
+    // Similar implementation for RTO form
+    const clientData = {
+      client_id: client.id,
+      contact: client.contact,
+      client_name: client.client_name,
+      city_id: client.city_id,
+    };
+
+    localStorage.setItem("bmds_prefill_client", JSON.stringify(clientData));
+    navigate("/bmds-entries/create");
+  };
+
+  // Redirect to MF Form
+  const redirectToMfForm = (client) => {
+    // Similar implementation for RTO form
+    const clientData = {
+      client_id: client.id,
+      contact: client.contact,
+      client_name: client.client_name,
+      city_id: client.city_id,
+    };
+
+    localStorage.setItem("mf_prefill_client", JSON.stringify(clientData));
+    navigate("/mf-entries/create");
+  };
+
   const exportToCSV = () => {
     const headers = [
       "#",
@@ -691,6 +719,26 @@ const Clients = () => {
                                 >
                                   <Car className="h-4 w-4" />
                                   Create RTO Entry
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    redirectToBmdsForm(client);
+                                    setActionMenu(null);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  <Car className="h-4 w-4" />
+                                  Create BMDS Entry
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    redirectToMfForm(client);
+                                    setActionMenu(null);
+                                  }}
+                                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  <Car className="h-4 w-4" />
+                                  Create MF Entry
                                 </button>
                                 <div className="border-t border-gray-200 my-1"></div>
                                 <button
