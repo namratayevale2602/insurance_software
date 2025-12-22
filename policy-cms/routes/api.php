@@ -76,11 +76,14 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::put('/updategic/{id}', [GicEntryController::class, 'update']);
     Route::delete('/deletegic/{id}', [GicEntryController::class, 'destroy']);
     Route::get('/gicEntries', [GicEntryController::class, 'index']);
+    Route::get('/gicEntries/{id}', [GicEntryController::class, 'show']);
 
     Route::get('gic-entries/reg-num/{regNum}', [GicEntryController::class, 'getByRegNum']);
     Route::get('gic-entries/policy-num/{policyNum}', [GicEntryController::class, 'getByPolicyNum']);
     Route::get('gic-entries/client/{clientId}', [GicEntryController::class, 'getByClient']);
     Route::get('gic-entries/stats', [GicEntryController::class, 'getStats']);
+
+    Route::get('/gicEntries/filter-stats', [GicEntryController::class, 'getFilterStats']);
 
     // LIC Entries Routes
 
@@ -88,6 +91,7 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::put('/updatelic/{id}', [LicEntryController::class, 'update']);
     Route::delete('/deletelic/{id}', [LicEntryController::class, 'destroy']);
     Route::get('/licEntries', [LicEntryController::class, 'index']);
+    Route::get('/licEntries/{id}', [LicEntryController::class, 'show']);
 
     Route::get('lic-entries/reg-num/{regNum}', [LicEntryController::class, 'getByRegNum']);
     Route::get('lic-entries/policy-num/{policyNum}', [LicEntryController::class, 'getByPolicyNum']);
@@ -100,6 +104,8 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::put('/updateRto/{id}', [RtoEntryController::class, 'update']);
     Route::delete('/deleteRto/{id}', [RtoEntryController::class, 'destroy']);
     Route::get('/RtoEntries', [RtoEntryController::class, 'index']);
+    Route::get('/rtoEntries/{id}', [RtoEntryController::class, 'show']);
+
 
      // BMDS Entries Routes
 
@@ -107,6 +113,7 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::put('/updateBmds/{id}', [BmdsEntryController::class, 'update']);
     Route::delete('/deleteBmds/{id}', [BmdsEntryController::class, 'destroy']);
     Route::get('/BmdsEntries', [BmdsEntryController::class, 'index']);
+    Route::get('/bmdsEntries/{id}', [BmdsEntryController::class, 'show']);
 
      // MF Entries Routes
 
@@ -114,6 +121,7 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::put('/updateMf/{id}', [MfEntryController::class, 'update']);
     Route::delete('/deleteMf/{id}', [MfEntryController::class, 'destroy']);
     Route::get('/MfEntries', [MfEntryController::class, 'index']);
+    Route::get('/mfEntries/{id}', [MfEntryController::class, 'show']);
 
     // Expense Entries Routes
 
