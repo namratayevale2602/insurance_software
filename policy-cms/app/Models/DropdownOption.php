@@ -83,10 +83,6 @@ class DropdownOption extends Model
         return self::byCategory('branches')->active()->ordered()->get();
     }
 
-    public static function getCities()
-    {
-        return self::byCategory('cities')->active()->ordered()->get();
-    }
 
     // Accessors
     public function getFormattedValueAttribute()
