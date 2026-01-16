@@ -47,7 +47,7 @@ const VerticalSidebar = () => {
         } transition-all duration-300 ease-in-out`}
       >
         <aside
-          className={`bg-[#04496e] text-white h-[calc(100vh-4rem)] sticky top-16 flex flex-col ${
+          className={`bg-[#04496e] text-white sticky top-16 flex flex-col ${
             isSidebarOpen ? "w-64" : "w-16"
           } transition-all duration-300`}
         >

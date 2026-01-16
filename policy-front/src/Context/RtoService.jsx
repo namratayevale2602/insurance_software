@@ -18,6 +18,7 @@ const RtoService = {
     );
   },
 
+  getFilterOptions: () => axiosInstance.get("/rto-entries/filter-options"),
   getNextRegNum: () => axiosInstance.get("/rto-entries/next-reg-num"),
 
   // Dropdown options

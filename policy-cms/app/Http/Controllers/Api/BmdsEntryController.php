@@ -5,15 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\BmdsEntry;
 use App\Models\Client;
+use App\Models\DropdownOption;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class BmdsEntryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
+     /**
+     * Display a listing of the resource with comprehensive filters
      */
     public function index(Request $request)
     {
@@ -36,13 +38,14 @@ class BmdsEntryController extends Controller
                 $query->onlyTrashed();
             }
 
-            // Search filter
+            // ========== SEARCH FILTERS ==========
+            // General search across multiple fields
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->whereHas('client', function($clientQuery) use ($search) {
                         $clientQuery->where('client_name', 'like', "%{$search}%")
-                                  ->orWhere('contact', 'like', "%{$search}%");
+                            ->orWhere('contact', 'like', "%{$search}%");
                     })
                     ->orWhere('sr_num', 'like', "%{$search}%")
                     ->orWhere('reg_num', 'like', "%{$search}%")
@@ -50,14 +53,116 @@ class BmdsEntryController extends Controller
                 });
             }
 
+            // Client name specific filter
+            if ($request->has('client_name')) {
+                $query->whereHas('client', function($q) use ($request) {
+                    $q->where('client_name', 'like', "%{$request->client_name}%");
+                });
+            }
+
+            // Client contact specific filter
+            if ($request->has('client_contact')) {
+                $query->whereHas('client', function($q) use ($request) {
+                    $q->where('contact', 'like', "%{$request->client_contact}%");
+                });
+            }
+
+            // Registration number filter
+            if ($request->has('reg_num')) {
+                $query->where('reg_num', $request->reg_num);
+            }
+
+            // SR number filter
+            if ($request->has('sr_num')) {
+                $query->where('sr_num', 'like', "%{$request->sr_num}%");
+            }
+
+            // ========== BMDS TYPE & SUBTYPE FILTERS ==========
             // BMDS type filter
             if ($request->has('bmds_type')) {
                 $query->where('bmds_type', $request->bmds_type);
             }
 
+            // LLR subtype filter
+            if ($request->has('llr_sub_type')) {
+                $query->where('llr_sub_type', $request->llr_sub_type);
+            }
+
+            // DL subtype filter
+            if ($request->has('dl_sub_type')) {
+                $query->where('dl_sub_type', $request->dl_sub_type);
+            }
+
+            // Test place filter
+            if ($request->has('test_place_id')) {
+                $query->where('test_place_id', $request->test_place_id);
+            }
+
+            // Class of vehicle filter
+            if ($request->has('class_of_vehicle_id')) {
+                $query->where('class_of_vehicle_id', $request->class_of_vehicle_id);
+            }
+
+            // Number of classes filter
+            if ($request->has('no_of_class')) {
+                $query->where('no_of_class', $request->no_of_class);
+            }
+
+            // ADM car type filter
+            if ($request->has('adm_car_type_id')) {
+                $query->where('adm_car_type_id', $request->adm_car_type_id);
+            }
+
+            // KM ride filter
+            if ($request->has('km_ride')) {
+                $query->where('km_ride', $request->km_ride);
+            }
+
+            // ========== STATUS FILTER ==========
             // Form status filter
             if ($request->has('form_status')) {
                 $query->where('form_status', $request->form_status);
+            }
+
+            // ========== DATE RANGE FILTERS ==========
+            // Entry date range filter
+            if ($request->has('date_from') && $request->has('date_to')) {
+                $query->whereBetween('date', [
+                    $request->date_from,
+                    $request->date_to
+                ]);
+            } elseif ($request->has('date_from')) {
+                $query->where('date', '>=', $request->date_from);
+            } elseif ($request->has('date_to')) {
+                $query->where('date', '<=', $request->date_to);
+            }
+
+            // Test date range filter
+            if ($request->has('test_date_from') && $request->has('test_date_to')) {
+                $query->whereBetween('test_date', [
+                    $request->test_date_from,
+                    $request->test_date_to
+                ]);
+            } elseif ($request->has('test_date_from')) {
+                $query->where('test_date', '>=', $request->test_date_from);
+            } elseif ($request->has('test_date_to')) {
+                $query->where('test_date', '<=', $request->test_date_to);
+            }
+
+            // ADM start date range filter
+            if ($request->has('start_dt_from') && $request->has('start_dt_to')) {
+                $query->whereBetween('start_dt', [
+                    $request->start_dt_from,
+                    $request->start_dt_to
+                ]);
+            }
+
+            // ADM end date range filter
+            if ($request->has('end_dt_from') && $request->has('end_dt_to')) {
+                $query->whereBetween('end_dt', [
+                    $request->end_dt_from,
+                    $request->end_dt_to
+                ]);
             }
 
             // Month filter
@@ -67,7 +172,208 @@ class BmdsEntryController extends Controller
                 $query->whereYear('date', $year)->whereMonth('date', $month);
             }
 
-            $entries = $query->latest()->paginate(10);
+            // ========== AMOUNT FILTERS ==========
+            // Quotation amount range
+            if ($request->has('quotation_from') && $request->has('quotation_to')) {
+                $query->whereBetween('quotation_amt', [
+                    $request->quotation_from,
+                    $request->quotation_to
+                ]);
+            } elseif ($request->has('quotation_from')) {
+                $query->where('quotation_amt', '>=', $request->quotation_from);
+            } elseif ($request->has('quotation_to')) {
+                $query->where('quotation_amt', '<=', $request->quotation_to);
+            }
+
+            // Advance amount range
+            if ($request->has('advance_from') && $request->has('advance_to')) {
+                $query->whereBetween('adv_amt', [
+                    $request->advance_from,
+                    $request->advance_to
+                ]);
+            }
+
+            // Excess amount range
+            if ($request->has('excess_from') && $request->has('excess_to')) {
+                $query->whereBetween('excess_amt', [
+                    $request->excess_from,
+                    $request->excess_to
+                ]);
+            }
+
+            // Recovery amount range
+            if ($request->has('recovery_from') && $request->has('recovery_to')) {
+                $query->whereBetween('recov_amt', [
+                    $request->recovery_from,
+                    $request->recovery_to
+                ]);
+            }
+
+            // ========== SORTING ==========
+            // Default sorting
+            $sortBy = $request->has('sort_by') ? $request->sort_by : 'created_at';
+            $sortOrder = $request->has('sort_order') ? $request->sort_order : 'desc';
+
+            // Validate sort fields
+            $validSortFields = [
+                'reg_num', 'date', 'test_date', 'sr_num', 'quotation_amt', 'adv_amt',
+                'created_at', 'updated_at', 'client_name', 'bmds_type'
+            ];
+
+            if (in_array($sortBy, $validSortFields)) {
+                if ($sortBy === 'client_name') {
+                    $query->leftJoin('client', 'bmds_entries.client_id', '=', 'client.id')
+                          ->orderBy('client.client_name', $sortOrder)
+                          ->select('bmds_entries.*');
+                } else {
+                    $query->orderBy($sortBy, $sortOrder);
+                }
+            } else {
+                $query->latest();
+            }
+
+            // ========== PAGINATION ==========
+            $perPage = $request->has('per_page') ? min($request->per_page, 100) : 10;
+            $entries = $query->paginate($perPage);
+
+            return response()->json([
+                'success' => true,
+                'data' => $entries,
+                'message' => 'BMDS entries retrieved successfully.',
+                'filters' => [
+                    'applied' => $request->except(['page', 'per_page', 'sort_by', 'sort_order']),
+                    'sort_by' => $sortBy,
+                    'sort_order' => $sortOrder
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to retrieve BMDS entries: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve BMDS entries.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get filter options for BMDS entries
+     */
+    public function getFilterOptions(Request $request)
+    {
+        try {
+            $options = [
+                'bmds_types' => ['LLR', 'DL', 'ADM'],
+                'llr_sub_types' => ['FRESH', 'EXEMPTED'],
+                'dl_sub_types' => ['FRESH', 'ENDST', 'REVALID'],
+                'no_of_classes' => ['1', '2', '3'],
+                'km_rides' => ['5KM', '10KM'],
+                'form_statuses' => ['PENDING', 'COMPLETE'],
+                
+                'test_places' => DropdownOption::where('category', 'test_places')->get(),
+                'class_of_vehicles' => DropdownOption::where('category', 'class_of_vehicle')->get(),
+                'adm_car_types' => DropdownOption::where('category', 'adm_car_types')->get(),
+
+                // Get unique years and months for quick filters
+                'unique_years' => BmdsEntry::select(DB::raw('YEAR(date) as year'))
+                    ->distinct()
+                    ->orderBy('year', 'desc')
+                    ->pluck('year'),
+                
+                'unique_months' => $this->getUniqueMonths(),
+            ];
+
+            // Get stats for dashboard
+            $stats = [
+                'total' => BmdsEntry::count(),
+                'llr' => BmdsEntry::llr()->count(),
+                'dl' => BmdsEntry::dl()->count(),
+                'adm' => BmdsEntry::adm()->count(),
+                'pending' => BmdsEntry::pending()->count(),
+                'complete' => BmdsEntry::complete()->count(),
+                'deleted' => BmdsEntry::onlyTrashed()->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'filter_options' => $options,
+                    'stats' => $stats
+                ],
+                'message' => 'Filter options retrieved successfully.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get filter options: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve filter options.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get unique months from data
+     */
+    private function getUniqueMonths()
+    {
+        $entries = BmdsEntry::select('date')->get();
+        $months = [];
+        
+        foreach ($entries as $entry) {
+            $monthYear = $entry->date->format('Y-m');
+            if (!in_array($monthYear, $months)) {
+                $months[] = $monthYear;
+            }
+        }
+        
+        rsort($months);
+        return $months;
+    }
+
+    /**
+     * Get BMDS entries with comprehensive filtering
+     */
+    public function getFilteredEntries(Request $request)
+    {
+        try {
+            $query = BmdsEntry::with([
+                'client', 
+                'client.city',
+                'testPlace',
+                'classOfVehicle',
+                'admCarType',
+            ]);
+
+            // Apply filters
+            $this->applyFilters($query, $request);
+
+            // Sorting
+            $sortBy = $request->has('sort_by') ? $request->sort_by : 'created_at';
+            $sortOrder = $request->has('sort_order') ? $request->sort_order : 'desc';
+
+            $validSortFields = ['reg_num', 'date', 'test_date', 'sr_num', 'created_at', 'updated_at', 'client_name', 'bmds_type'];
+            if (in_array($sortBy, $validSortFields)) {
+                if ($sortBy === 'client_name') {
+                    $query->leftJoin('client', 'bmds_entries.client_id', '=', 'client.id')
+                          ->orderBy('client.client_name', $sortOrder)
+                          ->select('bmds_entries.*');
+                } else {
+                    $query->orderBy($sortBy, $sortOrder);
+                }
+            } else {
+                $query->latest();
+            }
+
+            // Pagination
+            $perPage = $request->has('per_page') ? min($request->per_page, 100) : 10;
+            $entries = $query->paginate($perPage);
 
             return response()->json([
                 'success' => true,
@@ -76,12 +382,139 @@ class BmdsEntryController extends Controller
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Failed to retrieve filtered BMDS entries: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve BMDS entries.',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
+    }
+
+    /**
+     * Apply common filters to query
+     */
+    private function applyFilters($query, $request)
+    {
+        // Client filters
+        if ($request->has('client_name')) {
+            $query->whereHas('client', function($q) use ($request) {
+                $q->where('client_name', 'like', "%{$request->client_name}%");
+            });
+        }
+
+        if ($request->has('client_contact')) {
+            $query->whereHas('client', function($q) use ($request) {
+                $q->where('contact', 'like', "%{$request->client_contact}%");
+            });
+        }
+
+        // Registration and SR number filters
+        if ($request->has('reg_num')) {
+            $query->where('reg_num', $request->reg_num);
+        }
+
+        if ($request->has('sr_num')) {
+            $query->where('sr_num', 'like', "%{$request->sr_num}%");
+        }
+
+        // BMDS type and subtype filters
+        if ($request->has('bmds_type')) {
+            $query->where('bmds_type', $request->bmds_type);
+        }
+
+        if ($request->has('llr_sub_type')) {
+            $query->where('llr_sub_type', $request->llr_sub_type);
+        }
+
+        if ($request->has('dl_sub_type')) {
+            $query->where('dl_sub_type', $request->dl_sub_type);
+        }
+
+        // Test place filter
+        if ($request->has('test_place_id')) {
+            $query->where('test_place_id', $request->test_place_id);
+        }
+
+        // Class of vehicle filter
+        if ($request->has('class_of_vehicle_id')) {
+            $query->where('class_of_vehicle_id', $request->class_of_vehicle_id);
+        }
+
+        // Number of classes filter
+        if ($request->has('no_of_class')) {
+            $query->where('no_of_class', $request->no_of_class);
+        }
+
+        // ADM car type filter
+        if ($request->has('adm_car_type_id')) {
+            $query->where('adm_car_type_id', $request->adm_car_type_id);
+        }
+
+        // KM ride filter
+        if ($request->has('km_ride')) {
+            $query->where('km_ride', $request->km_ride);
+        }
+
+        // Status filter
+        if ($request->has('form_status')) {
+            $query->where('form_status', $request->form_status);
+        }
+
+        // Entry date range filter
+        if ($request->has('date_from') && $request->has('date_to')) {
+            $query->whereBetween('date', [
+                $request->date_from,
+                $request->date_to
+            ]);
+        } elseif ($request->has('date_from')) {
+            $query->where('date', '>=', $request->date_from);
+        } elseif ($request->has('date_to')) {
+            $query->where('date', '<=', $request->date_to);
+        }
+
+        // Test date range filter
+        if ($request->has('test_date_from') && $request->has('test_date_to')) {
+            $query->whereBetween('test_date', [
+                $request->test_date_from,
+                $request->test_date_to
+            ]);
+        } elseif ($request->has('test_date_from')) {
+            $query->where('test_date', '>=', $request->test_date_from);
+        } elseif ($request->has('test_date_to')) {
+            $query->where('test_date', '<=', $request->test_date_to);
+        }
+
+        // Amount filters
+        if ($request->has('quotation_from') && $request->has('quotation_to')) {
+            $query->whereBetween('quotation_amt', [
+                $request->quotation_from,
+                $request->quotation_to
+            ]);
+        }
+
+        if ($request->has('advance_from') && $request->has('advance_to')) {
+            $query->whereBetween('adv_amt', [
+                $request->advance_from,
+                $request->advance_to
+            ]);
+        }
+
+        if ($request->has('excess_from') && $request->has('excess_to')) {
+            $query->whereBetween('excess_amt', [
+                $request->excess_from,
+                $request->excess_to
+            ]);
+        }
+
+        if ($request->has('recovery_from') && $request->has('recovery_to')) {
+            $query->whereBetween('recov_amt', [
+                $request->recovery_from,
+                $request->recovery_to
+            ]);
+        }
+
+        return $query;
     }
 
     /**

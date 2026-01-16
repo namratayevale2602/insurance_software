@@ -8,7 +8,7 @@ const Layout = () => {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Horizontal Navbar */}
-      <HorizontalNavbar />
+      {/* <HorizontalNavbar /> */}
 
       <div className="flex flex-1">
         {/* Vertical Sidebar - Now properly toggleable */}
@@ -21,7 +21,7 @@ const Layout = () => {
       </div>
 
       {/* Footer */}
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 };

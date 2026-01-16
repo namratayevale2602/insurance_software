@@ -7,6 +7,7 @@ import {
   Edit,
   Trash2,
   Search,
+  Filter,
   Download,
   RefreshCw,
   Home,
@@ -24,6 +25,7 @@ import {
   ClipboardList,
   Wallet,
   Building,
+  ChevronUp,
 } from "lucide-react";
 
 const Lic = () => {
@@ -36,27 +38,88 @@ const Lic = () => {
     total: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filters, setFilters] = useState({
+    // Search filters
+    search: "",
+    client_name: "",
+    client_contact: "",
+    reg_num: "",
+    policy_num: "",
+
+    // Job type filters
     job_type: "",
+    collection_job_type_id: "",
+    servicing_type_job_id: "",
+    agency_id: "",
+
+    // Status & payment filters
     form_status: "",
     pay_mode: "",
+
+    // Date range filters
+    date_from: "",
+    date_to: "",
+    financial_year: "",
+
+    // Search term for quick search
+    search_term: "",
   });
+
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [dropdownOptions, setDropdownOptions] = useState({});
   const [stats, setStats] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+
+  // Fetch dropdown options
+  const fetchDropdownOptions = async () => {
+    try {
+      const response = await LicService.getDropdownOptions();
+      if (response.data.success) {
+        const data = response.data.data;
+
+        // Organize dropdown options by category
+        const organizedOptions = {
+          agencies: data.filter((option) => option.category === "agencies"),
+          collection_job_types: data.filter(
+            (option) => option.category === "collection_job_types"
+          ),
+          servicing_job_types: data.filter(
+            (option) => option.category === "servicing_job_types"
+          ),
+          banks: data.filter((option) => option.category === "bank"),
+          branches: data.filter((option) => option.category === "branch"),
+        };
+
+        setDropdownOptions(organizedOptions);
+        console.log("Organized dropdown options:", organizedOptions);
+      }
+    } catch (error) {
+      console.error("Error fetching dropdown options:", error);
+    }
+  };
 
   // Fetch LIC data with pagination
   const fetchData = async (page = 1, perPageValue = perPage) => {
     setLoading(true);
     try {
-      const params = { page, per_page: perPageValue };
+      const params = {
+        page,
+        per_page: perPageValue,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
 
-      // Add filters to params if they exist
-      if (filters.job_type) params.job_type = filters.job_type;
-      if (filters.form_status) params.form_status = filters.form_status;
-      if (filters.pay_mode) params.pay_mode = filters.pay_mode;
-      if (searchTerm) params.search = searchTerm;
+      // Add all filters to params if they exist
+      Object.keys(filters).forEach((key) => {
+        if (filters[key] !== "") {
+          params[key] = filters[key];
+        }
+      });
+
+      console.log("Fetching LIC data with params:", params);
 
       const response = await LicService.getAllLicEntries(params);
       console.log("LIC data response:", response.data);
@@ -95,16 +158,17 @@ const Lic = () => {
   useEffect(() => {
     fetchData();
     fetchStats();
+    fetchDropdownOptions();
   }, []);
 
-  // Handle search and filter
+  // Handle filter changes with debounce
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchData(1);
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, filters]);
+  }, [filters, sortBy, sortOrder]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= licData.last_page) {
@@ -215,6 +279,36 @@ const Lic = () => {
     }
   };
 
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFilters({
+      search: "",
+      client_name: "",
+      client_contact: "",
+      reg_num: "",
+      policy_num: "",
+      job_type: "",
+      collection_job_type_id: "",
+      servicing_type_job_id: "",
+      agency_id: "",
+      form_status: "",
+      pay_mode: "",
+      date_from: "",
+      date_to: "",
+      financial_year: "",
+      search_term: "",
+    });
+    setSortBy("created_at");
+    setSortOrder("desc");
+  };
+
+  // Check if any filter is active
+  const hasActiveFilters = () => {
+    return Object.keys(filters).some(
+      (key) => filters[key] && !["search_term"].includes(key)
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Breadcrumb */}
@@ -258,13 +352,13 @@ const Lic = () => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* <button
+          <button
             onClick={handleCreateNew}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             Add New LIC
-          </button> */}
+          </button>
 
           <button
             onClick={() => fetchData(currentPage)}
@@ -339,64 +433,335 @@ const Lic = () => {
 
       {/* Filters Bar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
+        {/* Basic Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          {/* Quick Search */}
+          <div className="col-span-full lg:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Quick Search
+            </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Search by reg no, client name, policy no..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search reg no, client, policy..."
+                value={filters.search_term}
+                onChange={(e) =>
+                  setFilters({ ...filters, search_term: e.target.value })
+                }
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={filters.job_type}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Name
+            </label>
+            <input
+              type="text"
+              placeholder="Search client name..."
+              value={filters.client_name}
               onChange={(e) =>
-                setFilters({ ...filters, job_type: e.target.value })
+                setFilters({ ...filters, client_name: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Job Types</option>
-              <option value="COLLECTION">Collection</option>
-              <option value="SERVICING_TASK">Servicing Task</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
 
-            <select
-              value={filters.form_status}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Contact
+            </label>
+            <input
+              type="text"
+              placeholder="Search contact..."
+              value={filters.client_contact}
               onChange={(e) =>
-                setFilters({ ...filters, form_status: e.target.value })
+                setFilters({ ...filters, client_contact: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Status</option>
-              <option value="PENDING">Pending</option>
-              <option value="COMPLETE">Complete</option>
-              <option value="CDA">CDA</option>
-              <option value="CANCELLED">Cancelled</option>
-              <option value="OTHER">Other</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
 
-            <select
-              value={filters.pay_mode}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              From Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_from}
               onChange={(e) =>
-                setFilters({ ...filters, pay_mode: e.target.value })
+                setFilters({ ...filters, date_from: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Payment Modes</option>
-              <option value="CASH">Cash</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="ONLINE">Online</option>
-              <option value="RTGS/NEFT">RTGS/NEFT</option>
-              <option value="PAYMENT LINK">Payment Link</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) =>
+                setFilters({ ...filters, date_to: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
           </div>
         </div>
+
+        {/* Toggle Advanced Filters */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {showAdvancedFilters ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Hide Advanced Filters
+              </>
+            ) : (
+              <>
+                <Filter className="h-4 w-4" />
+                Show Advanced Filters
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Advanced Filters - Conditionally Rendered */}
+        {showAdvancedFilters && (
+          <>
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Advanced Filters
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Registration and Policy Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reg No
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Registration number..."
+                    value={filters.reg_num}
+                    onChange={(e) =>
+                      setFilters({ ...filters, reg_num: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Policy No
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Policy number..."
+                    value={filters.policy_num}
+                    onChange={(e) =>
+                      setFilters({ ...filters, policy_num: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Job Type
+                  </label>
+                  <select
+                    value={filters.job_type}
+                    onChange={(e) =>
+                      setFilters({ ...filters, job_type: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Job Types</option>
+                    <option value="COLLECTION">Collection</option>
+                    <option value="SERVICING_TASK">Servicing Task</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Agency
+                  </label>
+                  <select
+                    value={filters.agency_id}
+                    onChange={(e) =>
+                      setFilters({ ...filters, agency_id: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Agencies</option>
+                    {dropdownOptions.agencies?.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Conditional Filters based on Job Type */}
+                {filters.job_type === "COLLECTION" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Collection Job Type
+                    </label>
+                    <select
+                      value={filters.collection_job_type_id}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          collection_job_type_id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All Collection Types</option>
+                      {dropdownOptions.collection_job_types?.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {filters.job_type === "SERVICING_TASK" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Servicing Job Type
+                    </label>
+                    <select
+                      value={filters.servicing_type_job_id}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          servicing_type_job_id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All Servicing Types</option>
+                      {dropdownOptions.servicing_job_types?.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* More Advanced Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Form Status
+                  </label>
+                  <select
+                    value={filters.form_status}
+                    onChange={(e) =>
+                      setFilters({ ...filters, form_status: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="COMPLETE">Complete</option>
+                    <option value="CDA">CDA</option>
+                    <option value="CANCELLED">Cancelled</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Mode
+                  </label>
+                  <select
+                    value={filters.pay_mode}
+                    onChange={(e) =>
+                      setFilters({ ...filters, pay_mode: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Payment Modes</option>
+                    <option value="CASH">Cash</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="ONLINE">Online</option>
+                    <option value="RTGS/NEFT">RTGS/NEFT</option>
+                    <option value="PAYMENT LINK">Payment Link</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">
+                Sort by:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="reg_num">Reg No</option>
+                <option value="date">Date</option>
+                <option value="pay_mode">Payment Mode</option>
+                <option value="premium_amt">Premium Amount</option>
+                <option value="client_name">Client Name</option>
+                <option value="created_at">Created Date</option>
+                <option value="updated_at">Updated Date</option>
+              </select>
+
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {hasActiveFilters() && (
+              <button
+                onClick={clearAllFilters}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Clear All Filters
+              </button>
+            )}
+
+            <button
+              onClick={() => fetchData(1)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Summary */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {licData.data.length} of {licData.total} entries
+        {hasActiveFilters() && " (with filters applied)"}
       </div>
 
       {/* LIC Entries Table */}

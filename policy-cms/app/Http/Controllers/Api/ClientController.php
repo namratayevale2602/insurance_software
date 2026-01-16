@@ -18,20 +18,62 @@ use Illuminate\Support\Facades\DB;
 
 class ClientController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+   /**
+ * Display a listing of the resource.
+ */
+public function index(Request $request)
 {
     try {
         $query = Client::with(['city', 'inqueryFor']);
 
-        // Search filter
+        // ========== SEARCH FILTERS ==========
+        // General search across multiple fields
         if ($request->has('search') && !empty($request->search)) {
             $search = $request->search;
             $query->search($search);
         }
 
+        // Client name specific filter
+        if ($request->has('client_name') && !empty($request->client_name)) {
+            $query->where('client_name', 'like', "%{$request->client_name}%");
+        }
+
+        // Contact specific filter
+        if ($request->has('contact') && !empty($request->contact)) {
+            $query->where('contact', 'like', "%{$request->contact}%");
+        }
+
+        // Aadhar number filter
+        if ($request->has('aadhar_no') && !empty($request->aadhar_no)) {
+            $query->where('aadhar_no', 'like', "%{$request->aadhar_no}%");
+        }
+
+        // PAN number filter
+        if ($request->has('pan_no') && !empty($request->pan_no)) {
+            $query->where('pan_no', 'like', "%{$request->pan_no}%");
+        }
+
+        // GST number filter
+        if ($request->has('gst_no') && !empty($request->gst_no)) {
+            $query->where('gst_no', 'like', "%{$request->gst_no}%");
+        }
+
+        // Email filter
+        if ($request->has('email') && !empty($request->email)) {
+            $query->where('email', 'like', "%{$request->email}%");
+        }
+
+        // SR No filter
+        if ($request->has('sr_no') && !empty($request->sr_no)) {
+            $query->where('sr_no', $request->sr_no);
+        }
+
+        // Reference filter
+        if ($request->has('reference') && !empty($request->reference)) {
+            $query->where('reference', 'like', "%{$request->reference}%");
+        }
+
+        // ========== CLIENT INFO FILTERS ==========
         // Client type filter
         if ($request->has('client_type') && !empty($request->client_type)) {
             $query->where('client_type', $request->client_type);
@@ -52,21 +94,72 @@ class ClientController extends Controller
             $query->where('inquery_for', $request->inquery_for);
         }
 
-        // SR No filter
-        if ($request->has('sr_no') && !empty($request->sr_no)) {
-            $query->where('sr_no', $request->sr_no);
+        // ========== DATE RANGE FILTERS ==========
+        // Entry date range filter
+        if ($request->has('date_from') && !empty($request->date_from)) {
+            $query->where('date', '>=', $request->date_from);
         }
 
-        // Date range filter
-        if ($request->has('start_date') && !empty($request->start_date)) {
-            $query->where('date', '>=', $request->start_date);
+        if ($request->has('date_to') && !empty($request->date_to)) {
+            $query->where('date', '<=', $request->date_to);
         }
 
-        if ($request->has('end_date') && !empty($request->end_date)) {
-            $query->where('date', '<=', $request->end_date);
+        // Month filter
+        if ($request->has('month') && !empty($request->month)) {
+            $month = date('m', strtotime($request->month));
+            $year = date('Y', strtotime($request->month));
+            $query->whereYear('date', $year)->whereMonth('date', $month);
         }
 
-        $clients = $query->latest()->paginate($request->get('per_page', 10));
+        // ========== AGE RANGE FILTERS ==========
+        // Age range filter
+        if ($request->has('age_from') && !empty($request->age_from)) {
+            $query->where('age', '>=', $request->age_from);
+        }
+
+        if ($request->has('age_to') && !empty($request->age_to)) {
+            $query->where('age', '<=', $request->age_to);
+        }
+
+        // ========== BIRTH DATE AND ANNIVERSARY FILTERS ==========
+        // Birth date range filter
+        if ($request->has('birth_date_from') && !empty($request->birth_date_from)) {
+            $query->where('birth_date', '>=', $request->birth_date_from);
+        }
+
+        if ($request->has('birth_date_to') && !empty($request->birth_date_to)) {
+            $query->where('birth_date', '<=', $request->birth_date_to);
+        }
+
+        // Anniversary date range filter
+        if ($request->has('anniversary_from') && !empty($request->anniversary_from)) {
+            $query->where('anniversary_dt', '>=', $request->anniversary_from);
+        }
+
+        if ($request->has('anniversary_to') && !empty($request->anniversary_to)) {
+            $query->where('anniversary_dt', '<=', $request->anniversary_to);
+        }
+
+        // ========== SORTING ==========
+        // Default sorting
+        $sortBy = $request->has('sort_by') ? $request->sort_by : 'created_at';
+        $sortOrder = $request->has('sort_order') ? $request->sort_order : 'desc';
+
+        // Validate sort fields
+        $validSortFields = [
+            'date', 'sr_no', 'client_name', 'age', 'client_type', 
+            'created_at', 'updated_at', 'birth_date', 'anniversary_dt'
+        ];
+
+        if (in_array($sortBy, $validSortFields)) {
+            $query->orderBy($sortBy, $sortOrder);
+        } else {
+            $query->latest();
+        }
+
+        // ========== PAGINATION ==========
+        $perPage = $request->has('per_page') ? min($request->per_page, 100) : 10;
+        $clients = $query->paginate($perPage);
 
         // Transform the data to include inquery_for_value
         $transformedClients = $clients->getCollection()->transform(function ($client) {
@@ -111,7 +204,12 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'data' => $clients,
-            'message' => 'Clients retrieved successfully.'
+            'message' => 'Clients retrieved successfully.',
+            'filters' => [
+                'applied' => $request->except(['page', 'per_page', 'sort_by', 'sort_order']),
+                'sort_by' => $sortBy,
+                'sort_order' => $sortOrder
+            ]
         ]);
 
     } catch (\Exception $e) {
@@ -123,7 +221,6 @@ class ClientController extends Controller
         ], 500);
     }
 }
-
     /**
      * Store a newly created resource in storage.
      */

@@ -27,6 +27,8 @@ const ClientService = {
 
   getAllCities: () => axiosInstance.get("/cities"),
 
+  // Remove duplicate getTodaySpecial from here
+
   getDropdownOptions: (category = "") => {
     if (category) {
       return axiosInstance.get(`/DropdownEntries?category=${category}`);
@@ -51,6 +53,18 @@ const ClientService = {
 
   getClientMfEntries: (clientId) =>
     axiosInstance.get(`/mf-entries/${clientId}`),
+
+  // REMINDER ENDPOINTS - Add these at the end
+  getTodaySpecial: () => axiosInstance.get("/clients/todayspecial"),
+
+  getUpcomingReminders: (daysAhead = 30) =>
+    axiosInstance.get(`/clients/upcoming-reminders?days_ahead=${daysAhead}`),
+
+  getRemindersByDateRange: (params) =>
+    axiosInstance.get("/clients/reminders-by-date", { params }),
+
+  getClientsForMessaging: (params) =>
+    axiosInstance.get("/clients/for-messaging", { params }),
 };
 
 export default ClientService;

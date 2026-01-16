@@ -7,6 +7,7 @@ import {
   Edit,
   Trash2,
   Search,
+  Filter,
   Download,
   RefreshCw,
   Home,
@@ -23,6 +24,7 @@ import {
   IdCard,
   Receipt,
   Calculator,
+  ChevronUp,
 } from "lucide-react";
 
 const Rto = () => {
@@ -35,25 +37,118 @@ const Rto = () => {
     total: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filters, setFilters] = useState({
+    // Search filters
+    search: "",
+    client_name: "",
+    client_contact: "",
+    reg_num: "",
+    mv_num: "",
+
+    // Category & type filters
     category: "",
+    nt_type_work_id: "",
+    tr_type_work_id: "",
+    dl_type_work_id: "",
+    vehicle_class_id: "",
+
+    // Status filter
     form_status: "",
+
+    // Date range filters
+    date_from: "",
+    date_to: "",
+    month: "",
+
+    // Amount filters
+    premium_from: "",
+    premium_to: "",
+    advance_from: "",
+    advance_to: "",
+    gov_fee_from: "",
+    gov_fee_to: "",
+
+    // Search term for quick search
+    search_term: "",
   });
+
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [dropdownOptions, setDropdownOptions] = useState({});
   const [stats, setStats] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+
+  // Fetch dropdown options
+  const fetchDropdownOptions = async () => {
+    try {
+      // Try to get options from your existing DropdownEntries API
+      const response = await RtoService.getDropdownOptions();
+
+      if (response.data.success) {
+        const allOptions = response.data.data;
+        console.log("All dropdown options:", allOptions);
+
+        // Filter and organize the options
+        const organizedOptions = {
+          categories: ["NT", "TR", "DL"],
+          form_statuses: ["PENDING", "COMPLETE"],
+          nt_type_works: allOptions.filter(
+            (option) => option.category === "nt_type_work"
+          ),
+          tr_type_works: allOptions.filter(
+            (option) => option.category === "tr_type_work"
+          ),
+          dl_type_works: allOptions.filter(
+            (option) => option.category === "dl_type_work"
+          ),
+          vehicle_classes: allOptions.filter(
+            (option) => option.category === "vehicle_cls"
+          ),
+          unique_months: [],
+        };
+
+        // Generate unique months for the last 12 months
+        const months = [];
+        for (let i = 0; i < 12; i++) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          const monthYear = date.toISOString().slice(0, 7);
+          months.push(monthYear);
+        }
+        organizedOptions.unique_months = months;
+
+        console.log("Organized RTO options:", organizedOptions);
+        setDropdownOptions(organizedOptions);
+      } else {
+        setDefaultDropdownOptions();
+      }
+    } catch (error) {
+      console.error("Error fetching dropdown options:", error);
+      setDefaultDropdownOptions();
+    }
+  };
 
   // Fetch RTO data with pagination
   const fetchData = async (page = 1, perPageValue = perPage) => {
     setLoading(true);
     try {
-      const params = { page, per_page: perPageValue };
+      const params = {
+        page,
+        per_page: perPageValue,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
 
-      // Add filters to params if they exist
-      if (filters.category) params.category = filters.category;
-      if (filters.form_status) params.form_status = filters.form_status;
-      if (searchTerm) params.search = searchTerm;
+      // Add all filters to params if they exist
+      Object.keys(filters).forEach((key) => {
+        if (filters[key] !== "") {
+          params[key] = filters[key];
+        }
+      });
+
+      console.log("Fetching RTO data with params:", params);
 
       const response = await RtoService.getAllRtoEntries(params);
       console.log("RTO data response:", response.data);
@@ -92,16 +187,17 @@ const Rto = () => {
   useEffect(() => {
     fetchData();
     fetchStats();
+    fetchDropdownOptions();
   }, []);
 
-  // Handle search and filter
+  // Handle filter changes with debounce
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchData(1);
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, filters]);
+  }, [filters, sortBy, sortOrder]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= rtoData.last_page) {
@@ -223,6 +319,42 @@ const Rto = () => {
     return premium - advance;
   };
 
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFilters({
+      search: "",
+      client_name: "",
+      client_contact: "",
+      reg_num: "",
+      mv_num: "",
+      category: "",
+      nt_type_work_id: "",
+      tr_type_work_id: "",
+      dl_type_work_id: "",
+      vehicle_class_id: "",
+      form_status: "",
+      date_from: "",
+      date_to: "",
+      month: "",
+      premium_from: "",
+      premium_to: "",
+      advance_from: "",
+      advance_to: "",
+      gov_fee_from: "",
+      gov_fee_to: "",
+      search_term: "",
+    });
+    setSortBy("created_at");
+    setSortOrder("desc");
+  };
+
+  // Check if any filter is active
+  const hasActiveFilters = () => {
+    return Object.keys(filters).some(
+      (key) => filters[key] && !["search_term"].includes(key)
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Breadcrumb */}
@@ -266,13 +398,13 @@ const Rto = () => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* <button
+          <button
             onClick={handleCreateNew}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" />
             Add New RTO
-          </button> */}
+          </button>
 
           <button
             onClick={() => fetchData(currentPage)}
@@ -347,47 +479,422 @@ const Rto = () => {
 
       {/* Filters Bar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
+        {/* Basic Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          {/* Quick Search */}
+          <div className="col-span-full lg:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Quick Search
+            </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Search by reg no, client name, MV no..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search reg no, client, MV no..."
+                value={filters.search_term}
+                onChange={(e) =>
+                  setFilters({ ...filters, search_term: e.target.value })
+                }
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={filters.category}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Name
+            </label>
+            <input
+              type="text"
+              placeholder="Search client name..."
+              value={filters.client_name}
               onChange={(e) =>
-                setFilters({ ...filters, category: e.target.value })
+                setFilters({ ...filters, client_name: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Categories</option>
-              <option value="NT">NT (New Tax)</option>
-              <option value="TR">TR (Transfer)</option>
-              <option value="DL">DL (Driving License)</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
 
-            <select
-              value={filters.form_status}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Contact
+            </label>
+            <input
+              type="text"
+              placeholder="Search contact..."
+              value={filters.client_contact}
               onChange={(e) =>
-                setFilters({ ...filters, form_status: e.target.value })
+                setFilters({ ...filters, client_contact: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Status</option>
-              <option value="PENDING">Pending</option>
-              <option value="COMPLETE">Complete</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              From Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) =>
+                setFilters({ ...filters, date_from: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) =>
+                setFilters({ ...filters, date_to: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
           </div>
         </div>
+
+        {/* Toggle Advanced Filters */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {showAdvancedFilters ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Hide Advanced Filters
+              </>
+            ) : (
+              <>
+                <Filter className="h-4 w-4" />
+                Show Advanced Filters
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Advanced Filters - Conditionally Rendered */}
+        {showAdvancedFilters && (
+          <>
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Advanced Filters
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Registration and Vehicle Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reg No
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Registration number..."
+                    value={filters.reg_num}
+                    onChange={(e) =>
+                      setFilters({ ...filters, reg_num: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    MV No
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Vehicle number..."
+                    value={filters.mv_num}
+                    onChange={(e) =>
+                      setFilters({ ...filters, mv_num: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={filters.category}
+                    onChange={(e) =>
+                      setFilters({ ...filters, category: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="NT">NT (New Tax)</option>
+                    <option value="TR">TR (Transfer)</option>
+                    <option value="DL">DL (Driving License)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Form Status
+                  </label>
+                  <select
+                    value={filters.form_status}
+                    onChange={(e) =>
+                      setFilters({ ...filters, form_status: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="COMPLETE">Complete</option>
+                  </select>
+                </div>
+
+                {/* Month Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Month
+                  </label>
+                  <select
+                    value={filters.month}
+                    onChange={(e) =>
+                      setFilters({ ...filters, month: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Months</option>
+                    {dropdownOptions.unique_months?.map((month) => (
+                      <option key={month} value={month}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Conditional Filters based on Category */}
+                {filters.category === "NT" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      NT Type Work
+                    </label>
+                    <select
+                      value={filters.nt_type_work_id}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          nt_type_work_id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All NT Types</option>
+                      {dropdownOptions.nt_type_works?.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {filters.category === "TR" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      TR Type Work
+                    </label>
+                    <select
+                      value={filters.tr_type_work_id}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          tr_type_work_id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All TR Types</option>
+                      {dropdownOptions.tr_type_works?.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {filters.category === "DL" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      DL Type Work
+                    </label>
+                    <select
+                      value={filters.dl_type_work_id}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          dl_type_work_id: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All DL Types</option>
+                      {dropdownOptions.dl_type_works?.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Vehicle Class Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Class
+                  </label>
+                  <select
+                    value={filters.vehicle_class_id}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        vehicle_class_id: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Vehicle Classes</option>
+                    {dropdownOptions.vehicle_classes?.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Premium From
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Min premium..."
+                    value={filters.premium_from}
+                    onChange={(e) =>
+                      setFilters({ ...filters, premium_from: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Premium To
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Max premium..."
+                    value={filters.premium_to}
+                    onChange={(e) =>
+                      setFilters({ ...filters, premium_to: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Advance From
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Min advance..."
+                    value={filters.advance_from}
+                    onChange={(e) =>
+                      setFilters({ ...filters, advance_from: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Advance To
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Max advance..."
+                    value={filters.advance_to}
+                    onChange={(e) =>
+                      setFilters({ ...filters, advance_to: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">
+                Sort by:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="reg_num">Reg No</option>
+                <option value="date">Date</option>
+                <option value="client_name">Client Name</option>
+                <option value="mv_num">MV Number</option>
+                <option value="created_at">Created Date</option>
+                <option value="updated_at">Updated Date</option>
+              </select>
+
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {hasActiveFilters() && (
+              <button
+                onClick={clearAllFilters}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Clear All Filters
+              </button>
+            )}
+
+            <button
+              onClick={() => fetchData(1)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Summary */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {rtoData.data.length} of {rtoData.total} entries
+        {hasActiveFilters() && " (with filters applied)"}
       </div>
 
       {/* RTO Entries Table */}

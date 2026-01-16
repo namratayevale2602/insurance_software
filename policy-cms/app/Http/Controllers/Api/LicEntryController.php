@@ -5,16 +5,18 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\LicEntry;
 use App\Models\Client;
+use App\Models\DropdownOption;
 use App\Models\City;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class LicEntryController extends Controller
 {
-     /**
-     * Display a listing of the resource.
+      /**
+     * Display a listing of the resource with comprehensive filters
      */
     public function index(Request $request)
     {
@@ -39,33 +41,89 @@ class LicEntryController extends Controller
                 $query->onlyTrashed();
             }
 
-            // Search filter
+            // ========== SEARCH FILTERS ==========
+            // General search across multiple fields
             if ($request->has('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->whereHas('client', function($clientQuery) use ($search) {
                         $clientQuery->where('client_name', 'like', "%{$search}%")
-                                  ->orWhere('contact', 'like', "%{$search}%");
+                            ->orWhere('contact', 'like', "%{$search}%");
                     })
                     ->orWhere('policy_num', 'like', "%{$search}%")
                     ->orWhere('reg_num', 'like', "%{$search}%")
-                    ->orWhere('servicing_policy_no', 'like', "%{$search}%");
+                    ->orWhere('servicing_policy_no', 'like', "%{$search}%")
+                    ->orWhere('remark', 'like', "%{$search}%");
                 });
             }
 
+            // Client name specific filter
+            if ($request->has('client_name')) {
+                $query->whereHas('client', function($q) use ($request) {
+                    $q->where('client_name', 'like', "%{$request->client_name}%");
+                });
+            }
+
+            // Client contact specific filter
+            if ($request->has('client_contact')) {
+                $query->whereHas('client', function($q) use ($request) {
+                    $q->where('contact', 'like', "%{$request->client_contact}%");
+                });
+            }
+
+            // Registration number filter
+            if ($request->has('reg_num')) {
+                $query->where('reg_num', $request->reg_num);
+            }
+
+            // Policy number filter
+            if ($request->has('policy_num')) {
+                $query->where('policy_num', 'like', "%{$request->policy_num}%");
+            }
+
+            // ========== JOB TYPE FILTERS ==========
             // Job type filter
             if ($request->has('job_type')) {
                 $query->where('job_type', $request->job_type);
             }
 
-            // Form status filter
-            if ($request->has('form_status')) {
-                $query->where('form_status', $request->form_status);
+            // Collection job type filter
+            if ($request->has('collection_job_type_id')) {
+                $query->where('collection_job_type_id', $request->collection_job_type_id);
+            }
+
+            // Servicing job type filter
+            if ($request->has('servicing_type_job_id')) {
+                $query->where('servicing_type_job_id', $request->servicing_type_job_id);
             }
 
             // Agency filter
             if ($request->has('agency_id')) {
                 $query->where('agency_id', $request->agency_id);
+            }
+
+            // ========== STATUS & PAYMENT FILTERS ==========
+            // Form status filter
+            if ($request->has('form_status')) {
+                $query->where('form_status', $request->form_status);
+            }
+
+            // Payment mode filter
+            if ($request->has('pay_mode')) {
+                $query->where('pay_mode', $request->pay_mode);
+            }
+
+            // ========== DATE RANGE FILTERS ==========
+            // Date range filter
+            if ($request->has('date_from') && $request->has('date_to')) {
+                $query->whereBetween('date', [
+                    $request->date_from,
+                    $request->date_to
+                ]);
+            } elseif ($request->has('date_from')) {
+                $query->where('date', '>=', $request->date_from);
+            } elseif ($request->has('date_to')) {
+                $query->where('date', '<=', $request->date_to);
             }
 
             // Financial year filter
@@ -74,21 +132,180 @@ class LicEntryController extends Controller
                 $query->byFinancialYear($year);
             }
 
-            $entries = $query->latest()->paginate(10);
+            // ========== AMOUNT FILTERS ==========
+            // Premium amount range
+            if ($request->has('premium_from') && $request->has('premium_to')) {
+                $query->whereBetween('premium_amt', [
+                    $request->premium_from,
+                    $request->premium_to
+                ]);
+            } elseif ($request->has('premium_from')) {
+                $query->where('premium_amt', '>=', $request->premium_from);
+            } elseif ($request->has('premium_to')) {
+                $query->where('premium_amt', '<=', $request->premium_to);
+            }
+
+            // Number of policies filter
+            if ($request->has('no_of_policy_min') && $request->has('no_of_policy_max')) {
+                $query->whereBetween('no_of_policy', [
+                    $request->no_of_policy_min,
+                    $request->no_of_policy_max
+                ]);
+            }
+
+            // ========== BANKING FILTERS ==========
+            // Bank filter
+            if ($request->has('bank_name_id')) {
+                $query->where('bank_name_id', $request->bank_name_id);
+            }
+
+            // Branch filter
+            if ($request->has('branch_name_id')) {
+                $query->where('branch_name_id', $request->branch_name_id);
+            }
+
+            // Cheque date range filter
+            if ($request->has('cheque_date_from') && $request->has('cheque_date_to')) {
+                $query->whereBetween('cheque_dt', [
+                    $request->cheque_date_from,
+                    $request->cheque_date_to
+                ]);
+            }
+
+            // ========== SORTING ==========
+            // Default sorting
+            $sortBy = $request->has('sort_by') ? $request->sort_by : 'created_at';
+            $sortOrder = $request->has('sort_order') ? $request->sort_order : 'desc';
+
+            // Validate sort fields
+            $validSortFields = [
+                'reg_num', 'date', 'premium_amt', 'pay_mode',
+                'created_at', 'updated_at', 'client_name', 'policy_num'
+            ];
+
+            if (in_array($sortBy, $validSortFields)) {
+                if ($sortBy === 'client_name') {
+                    $query->leftJoin('client', 'lic_entries.client_id', '=', 'client.id')
+                          ->orderBy('client.client_name', $sortOrder)
+                          ->select('lic_entries.*');
+                } else {
+                    $query->orderBy($sortBy, $sortOrder);
+                }
+            } else {
+                $query->latest();
+            }
+
+            // ========== PAGINATION ==========
+            $perPage = $request->has('per_page') ? min($request->per_page, 100) : 10;
+            $entries = $query->paginate($perPage);
 
             return response()->json([
                 'success' => true,
                 'data' => $entries,
-                'message' => 'LIC entries retrieved successfully.'
+                'message' => 'LIC entries retrieved successfully.',
+                'filters' => [
+                    'applied' => $request->except(['page', 'per_page', 'sort_by', 'sort_order']),
+                    'sort_by' => $sortBy,
+                    'sort_order' => $sortOrder
+                ]
             ]);
 
         } catch (\Exception $e) {
+            Log::error('Failed to retrieve LIC entries: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to retrieve LIC entries.',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
+    }
+
+     /**
+     * Get filter options for LIC entries
+     */
+    public function getFilterOptions(Request $request)
+    {
+        try {
+            $options = [
+                'job_types' => ['COLLECTION', 'SERVICING_TASK'],
+                'form_statuses' => ['PENDING', 'COMPLETE', 'CDA', 'CANCELLED', 'OTHER'],
+                'payment_modes' => ['CASH', 'CHEQUE', 'PAYMENT LINK', 'ONLINE', 'RTGS/NEFT'],
+                
+                'agencies' => DropdownOption::where('category', 'agencies')->get(),
+                'collection_job_types' => DropdownOption::where('category', 'collection_job_types')->get(),
+                'servicing_job_types' => DropdownOption::where('category', 'servicing_job_types')->get(),
+                'banks' => DropdownOption::where('category', 'bank')->get(),
+                'branches' => DropdownOption::where('category', 'branch')->get(),
+
+                // Get unique values for quick filters
+                'unique_years' => LicEntry::select(DB::raw('YEAR(date) as year'))
+                    ->distinct()
+                    ->orderBy('year', 'desc')
+                    ->pluck('year'),
+                
+                'financial_years' => $this->getFinancialYears(),
+            ];
+
+            // Get stats for dashboard
+            $stats = [
+                'total' => LicEntry::count(),
+                'collection' => LicEntry::collection()->count(),
+                'servicing' => LicEntry::servicing()->count(),
+                'pending' => LicEntry::pending()->count(),
+                'complete' => LicEntry::complete()->count(),
+                'deleted' => LicEntry::onlyTrashed()->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'filter_options' => $options,
+                    'stats' => $stats
+                ],
+                'message' => 'Filter options retrieved successfully.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to get filter options: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve filter options.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    
+
+      /**
+     * Get financial years from data
+     */
+    private function getFinancialYears()
+    {
+        $entries = LicEntry::select('date')->get();
+        $financialYears = [];
+        
+        foreach ($entries as $entry) {
+            $year = $entry->date->year;
+            $month = $entry->date->month;
+            
+            if ($month >= 4) {
+                $fy = $year . '-' . ($year + 1);
+            } else {
+                $fy = ($year - 1) . '-' . $year;
+            }
+            
+            if (!in_array($fy, $financialYears)) {
+                $financialYears[] = $fy;
+            }
+        }
+        
+        rsort($financialYears);
+        return $financialYears;
     }
 
    /**

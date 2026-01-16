@@ -7,6 +7,8 @@ import {
   Edit,
   Trash2,
   Search,
+  Filter,
+  Download,
   RefreshCw,
   Home,
   ChevronRight,
@@ -24,6 +26,8 @@ import {
   CheckCircle,
   Target,
   Briefcase,
+  ChevronUp,
+  MapPin,
 } from "lucide-react";
 
 const Mf = () => {
@@ -36,25 +40,101 @@ const Mf = () => {
     total: 0,
   });
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filters, setFilters] = useState({
+    // Search filters
+    search: "",
+    client_name: "",
+    contact: "",
+    reg_num: "",
+    referance: "",
+
+    // MF type & option filters
     mf_type: "",
+    mf_option: "",
+    insurance_option: "",
+
+    // Status filter
     form_status: "",
+
+    // Date range filters
+    date_from: "",
+    date_to: "",
+    deadline_from: "",
+    deadline_to: "",
+    month: "",
+
+    // Amount filters
+    amt_from: "",
+    amt_to: "",
+
+    // Day of month filter
+    day_of_month: "",
+
+    // Search term for quick search
+    search_term: "",
+  });
+
+  const [sortBy, setSortBy] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const [dropdownOptions, setDropdownOptions] = useState({
+    mf_types: ["MF", "INSURANCE"],
+    mf_options: ["SIP", "SWP", "LUMSUM"],
+    insurance_options: ["LIC", "GIC"],
+    form_statuses: ["PENDING", "COMPLETE"],
+    unique_months: [],
+    day_of_month_options: Array.from({ length: 31 }, (_, i) =>
+      (i + 1).toString()
+    ),
   });
   const [stats, setStats] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
 
+  // Generate unique months for the last 12 months
+  const generateMonths = () => {
+    const months = [];
+    for (let i = 0; i < 12; i++) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthYear = date.toISOString().slice(0, 7);
+      months.push(monthYear);
+    }
+    return months;
+  };
+
+  // Initialize dropdown options
+  useEffect(() => {
+    const updatedOptions = {
+      ...dropdownOptions,
+      unique_months: generateMonths(),
+    };
+    setDropdownOptions(updatedOptions);
+  }, []);
+
   // Fetch MF data with pagination
   const fetchData = async (page = 1, perPageValue = perPage) => {
     setLoading(true);
     try {
-      const params = { page, per_page: perPageValue };
+      const params = {
+        page,
+        per_page: perPageValue,
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      };
 
-      // Add filters to params if they exist
-      if (filters.mf_type) params.mf_type = filters.mf_type;
-      if (filters.form_status) params.form_status = filters.form_status;
-      if (searchTerm) params.search = searchTerm;
+      // Add all filters to params if they exist
+      Object.keys(filters).forEach((key) => {
+        if (
+          filters[key] !== "" &&
+          filters[key] !== null &&
+          filters[key] !== undefined
+        ) {
+          params[key] = filters[key];
+        }
+      });
+
+      console.log("Fetching MF data with params:", params);
 
       const response = await MfService.getAllMfEntries(params);
       console.log("MF data response:", response.data);
@@ -95,14 +175,14 @@ const Mf = () => {
     fetchStats();
   }, []);
 
-  // Handle search and filter
+  // Handle filter changes with debounce
   useEffect(() => {
     const debounceTimer = setTimeout(() => {
       fetchData(1);
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, filters]);
+  }, [filters, sortBy, sortOrder]);
 
   const handlePageChange = (page) => {
     if (page >= 1 && page <= mfData.last_page) {
@@ -238,6 +318,39 @@ const Mf = () => {
     }
   };
 
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFilters({
+      search: "",
+      client_name: "",
+      contact: "",
+      reg_num: "",
+      referance: "",
+      mf_type: "",
+      mf_option: "",
+      insurance_option: "",
+      form_status: "",
+      date_from: "",
+      date_to: "",
+      deadline_from: "",
+      deadline_to: "",
+      month: "",
+      amt_from: "",
+      amt_to: "",
+      day_of_month: "",
+      search_term: "",
+    });
+    setSortBy("created_at");
+    setSortOrder("desc");
+  };
+
+  // Check if any filter is active
+  const hasActiveFilters = () => {
+    return Object.keys(filters).some(
+      (key) => filters[key] && !["search_term"].includes(key)
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Breadcrumb */}
@@ -283,13 +396,13 @@ const Mf = () => {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* <button
+          <button
             onClick={handleCreateNew}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             New Entry
-          </button> */}
+          </button>
 
           <button
             onClick={() => fetchData(currentPage)}
@@ -378,47 +491,391 @@ const Mf = () => {
 
       {/* Filters Bar */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6 shadow-sm">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
+        {/* Basic Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+          {/* Quick Search */}
+          <div className="col-span-full lg:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Quick Search
+            </label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <input
                 type="text"
-                placeholder="Search by client name, reference, remark..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search reg no, client, ref..."
+                value={filters.search_term}
+                onChange={(e) =>
+                  setFilters({ ...filters, search_term: e.target.value })
+                }
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <select
-              value={filters.mf_type}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Name
+            </label>
+            <input
+              type="text"
+              placeholder="Search client name..."
+              value={filters.client_name}
               onChange={(e) =>
-                setFilters({ ...filters, mf_type: e.target.value })
+                setFilters({ ...filters, client_name: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Types</option>
-              <option value="MF">Mutual Fund</option>
-              <option value="INSURANCE">Insurance</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
 
-            <select
-              value={filters.form_status}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Client Contact
+            </label>
+            <input
+              type="text"
+              placeholder="Search contact..."
+              value={filters.contact}
               onChange={(e) =>
-                setFilters({ ...filters, form_status: e.target.value })
+                setFilters({ ...filters, contact: e.target.value })
               }
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">All Status</option>
-              <option value="PENDING">Pending</option>
-              <option value="COMPLETE">Complete</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              From Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_from}
+              onChange={(e) =>
+                setFilters({ ...filters, date_from: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              To Date
+            </label>
+            <input
+              type="date"
+              value={filters.date_to}
+              onChange={(e) =>
+                setFilters({ ...filters, date_to: e.target.value })
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+            />
           </div>
         </div>
+
+        {/* Toggle Advanced Filters */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            {showAdvancedFilters ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Hide Advanced Filters
+              </>
+            ) : (
+              <>
+                <Filter className="h-4 w-4" />
+                Show Advanced Filters
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Advanced Filters - Conditionally Rendered */}
+        {showAdvancedFilters && (
+          <>
+            <div className="border-t border-gray-200 pt-4 mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                Advanced Filters
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Registration and Reference Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reg No
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Registration number..."
+                    value={filters.reg_num}
+                    onChange={(e) =>
+                      setFilters({ ...filters, reg_num: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Reference
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Reference..."
+                    value={filters.referance}
+                    onChange={(e) =>
+                      setFilters({ ...filters, referance: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    MF Type
+                  </label>
+                  <select
+                    value={filters.mf_type}
+                    onChange={(e) =>
+                      setFilters({ ...filters, mf_type: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Types</option>
+                    <option value="MF">Mutual Fund</option>
+                    <option value="INSURANCE">Insurance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Form Status
+                  </label>
+                  <select
+                    value={filters.form_status}
+                    onChange={(e) =>
+                      setFilters({ ...filters, form_status: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Status</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="COMPLETE">Complete</option>
+                  </select>
+                </div>
+
+                {/* Month Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Month
+                  </label>
+                  <select
+                    value={filters.month}
+                    onChange={(e) =>
+                      setFilters({ ...filters, month: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Months</option>
+                    {dropdownOptions?.unique_months?.map((month) => (
+                      <option key={month} value={month}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Conditional Filters based on MF Type */}
+                {filters.mf_type === "MF" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      MF Option
+                    </label>
+                    <select
+                      value={filters.mf_option}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          mf_option: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All MF Options</option>
+                      <option value="SIP">SIP</option>
+                      <option value="SWP">SWP</option>
+                      <option value="LUMSUM">Lumpsum</option>
+                    </select>
+                  </div>
+                )}
+
+                {filters.mf_type === "INSURANCE" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Insurance Option
+                    </label>
+                    <select
+                      value={filters.insurance_option}
+                      onChange={(e) =>
+                        setFilters({
+                          ...filters,
+                          insurance_option: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    >
+                      <option value="">All Insurance Options</option>
+                      <option value="LIC">LIC</option>
+                      <option value="GIC">GIC</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Day of Month Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Day of Month
+                  </label>
+                  <select
+                    value={filters.day_of_month}
+                    onChange={(e) =>
+                      setFilters({
+                        ...filters,
+                        day_of_month: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Days</option>
+                    {dropdownOptions?.day_of_month_options?.map((day) => (
+                      <option key={day} value={day}>
+                        Day {day}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Deadline Date Range Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Deadline From
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.deadline_from}
+                    onChange={(e) =>
+                      setFilters({ ...filters, deadline_from: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Deadline To
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.deadline_to}
+                    onChange={(e) =>
+                      setFilters({ ...filters, deadline_to: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                {/* Amount Range Filters */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Amount From
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Min amount"
+                    value={filters.amt_from}
+                    onChange={(e) =>
+                      setFilters({ ...filters, amt_from: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Amount To
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="Max amount"
+                    value={filters.amt_to}
+                    onChange={(e) =>
+                      setFilters({ ...filters, amt_to: e.target.value })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">
+                Sort by:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="reg_num">Reg No</option>
+                <option value="date">Date</option>
+                <option value="amt">Amount</option>
+                <option value="client_name">Client Name</option>
+                <option value="mf_type">MF Type</option>
+                <option value="created_at">Created Date</option>
+                <option value="updated_at">Updated Date</option>
+              </select>
+
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {hasActiveFilters() && (
+              <button
+                onClick={clearAllFilters}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Clear All Filters
+              </button>
+            )}
+
+            <button
+              onClick={() => fetchData(1)}
+              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Results Summary */}
+      <div className="mb-4 text-sm text-gray-600">
+        Showing {mfData.data.length} of {mfData.total} entries
+        {hasActiveFilters() && " (with filters applied)"}
       </div>
 
       {/* MF & Insurance Entries Table */}

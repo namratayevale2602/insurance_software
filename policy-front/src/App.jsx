@@ -26,6 +26,7 @@ import BmdsForm from "./pages/bmds/BmdsForm";
 import Bmds from "./pages/bmds/Bmds";
 import Mf from "./pages/mf/Mf";
 import MfForm from "./pages/mf/MfForm";
+import ClientReminders from "./pages/client/ClientReminders";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -47,6 +48,10 @@ const router = createBrowserRouter(
         <Route
           path="/clients/edit/:clientId"
           element={<ClientForm mode="edit" />}
+        />
+        <Route
+          path="/clients/todaySpacial"
+          element={<ClientReminders mode="edit" />}
         />
         {/* GIC Path  */}
         <Route path="/gic-entries/create" element={<GicForm mode="create" />} />

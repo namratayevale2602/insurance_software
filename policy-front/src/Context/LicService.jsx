@@ -17,6 +17,7 @@ const LicService = {
       `/licEntries${queryParams ? `?${queryParams}` : ""}`
     );
   },
+  getFilterOptions: () => axiosInstance.get("/filter-options"),
 
   getNextRegNum: () => axiosInstance.get("/lic-entries/next-reg-num"),
 

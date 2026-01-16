@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientReminderController;
 use App\Http\Controllers\Api\GicEntryController;
 use App\Http\Controllers\Api\LicEntryController;
 use App\Http\Controllers\Api\RtoEntryController;
@@ -60,6 +61,13 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::get('clients/type/{type}', [ClientController::class, 'getByType']);
     Route::get('clients/tag/{tag}', [ClientController::class, 'getByTag']);
     Route::get('clients/stats/statistics', [ClientController::class, 'getStats']);
+    Route::get('clients/todayspecial', [ClientController::class, 'getTodaySpecial']);
+
+    // Client reminder routes
+    Route::get('/clients/upcoming-reminders', [ClientReminderController::class, 'getUpcomingReminders']);
+    Route::get('/clients/reminders-by-date', [ClientReminderController::class, 'getRemindersByDateRange']);
+    Route::get('/clients/for-messaging', [ClientReminderController::class, 'getClientsForMessaging']);
+
 
     // Routes for cities and inqueries
     Route::get('cities', function () {
@@ -98,6 +106,9 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::get('lic-entries/client/{clientId}', [LicEntryController::class, 'getByClient']);
     Route::get('lic-entries/stats', [LicEntryController::class, 'getStats']);
 
+    Route::get('/filter-options', [LicEntryController::class, 'getFilterOptions']);
+    Route::get('/lic-entries/dropdown-options', [LicEntryController::class, 'getLicDropdownOptions']);
+
     // RTO Entries Routes
 
     Route::post('/createRto', [RtoEntryController::class, 'store']);
@@ -105,6 +116,7 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::delete('/deleteRto/{id}', [RtoEntryController::class, 'destroy']);
     Route::get('/RtoEntries', [RtoEntryController::class, 'index']);
     Route::get('/rtoEntries/{id}', [RtoEntryController::class, 'show']);
+    Route::get('/rto-entries/filter-options', [RtoEntryController::class, 'getFilterOptions']);
 
 
      // BMDS Entries Routes

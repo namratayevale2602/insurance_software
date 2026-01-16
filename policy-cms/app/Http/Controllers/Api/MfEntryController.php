@@ -12,72 +12,190 @@ use Illuminate\Support\Facades\DB;
 
 class MfEntryController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
-    {
-        try {
-            $query = MfEntry::with([
-                'client', 
-                'client.city',
-            ]);
+   /**
+ * Display a listing of the resource with comprehensive filters
+ */
+public function index(Request $request)
+{
+    try {
+        $query = MfEntry::with([
+            'client', 
+            'client.city',
+        ]);
 
-            // Include trashed records if requested
-            if ($request->has('with_trashed') && $request->with_trashed) {
-                $query->withTrashed();
-            }
-
-            // Show only trashed records if requested
-            if ($request->has('only_trashed') && $request->only_trashed) {
-                $query->onlyTrashed();
-            }
-
-            // Search filter
-            if ($request->has('search')) {
-                $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->whereHas('client', function($clientQuery) use ($search) {
-                        $clientQuery->where('client_name', 'like', "%{$search}%")
-                                  ->orWhere('contact', 'like', "%{$search}%");
-                    })
-                    ->orWhere('referance', 'like', "%{$search}%")
-                    ->orWhere('reg_num', 'like', "%{$search}%");
-                });
-            }
-
-            // MF type filter
-            if ($request->has('mf_type')) {
-                $query->where('mf_type', $request->mf_type);
-            }
-
-            // Form status filter
-            if ($request->has('form_status')) {
-                $query->where('form_status', $request->form_status);
-            }
-
-            // Financial year filter
-            if ($request->has('financial_year')) {
-                $year = explode('-', $request->financial_year)[0];
-                $query->byFinancialYear($year);
-            }
-
-            $entries = $query->latest()->paginate(10);
-
-            return response()->json([
-                'success' => true,
-                'data' => $entries,
-                'message' => 'MF entries retrieved successfully.'
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve MF entries.',
-                'error' => $e->getMessage()
-            ], 500);
+        // Include trashed records if requested
+        if ($request->has('with_trashed') && $request->with_trashed) {
+            $query->withTrashed();
         }
+
+        // Show only trashed records if requested
+        if ($request->has('only_trashed') && $request->only_trashed) {
+            $query->onlyTrashed();
+        }
+
+        // ========== SEARCH FILTERS ==========
+        // General search across multiple fields
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->whereHas('client', function($clientQuery) use ($search) {
+                    $clientQuery->where('client_name', 'like', "%{$search}%")
+                        ->orWhere('contact', 'like', "%{$search}%");
+                })
+                ->orWhere('referance', 'like', "%{$search}%")
+                ->orWhere('reg_num', 'like', "%{$search}%");
+            });
+        }
+
+        // Client name specific filter
+        if ($request->has('client_name')) {
+            $query->whereHas('client', function($q) use ($request) {
+                $q->where('client_name', 'like', "%{$request->client_name}%");
+            });
+        }
+
+        // Client contact specific filter
+        if ($request->has('contact')) {
+            $query->whereHas('client', function($q) use ($request) {
+                $q->where('contact', 'like', "%{$request->contact}%");
+            });
+        }
+
+        // Registration number filter
+        if ($request->has('reg_num')) {
+            $query->where('reg_num', $request->reg_num);
+        }
+
+        // Reference filter
+        if ($request->has('referance')) {
+            $query->where('referance', 'like', "%{$request->referance}%");
+        }
+
+        // ========== MF TYPE & OPTION FILTERS ==========
+        // MF type filter
+        if ($request->has('mf_type')) {
+            $query->where('mf_type', $request->mf_type);
+        }
+
+        // MF option filter
+        if ($request->has('mf_option')) {
+            $query->where('mf_option', $request->mf_option);
+        }
+
+        // Insurance option filter
+        if ($request->has('insurance_option')) {
+            $query->where('insurance_option', $request->insurance_option);
+        }
+
+        // ========== STATUS FILTER ==========
+        // Form status filter
+        if ($request->has('form_status')) {
+            $query->where('form_status', $request->form_status);
+        }
+
+        // ========== DATE RANGE FILTERS ==========
+        // Entry date range filter
+        if ($request->has('date_from') && $request->has('date_to')) {
+            $query->whereBetween('date', [
+                $request->date_from,
+                $request->date_to
+            ]);
+        } elseif ($request->has('date_from')) {
+            $query->where('date', '>=', $request->date_from);
+        } elseif ($request->has('date_to')) {
+            $query->where('date', '<=', $request->date_to);
+        }
+
+        // Deadline range filter
+        if ($request->has('deadline_from') && $request->has('deadline_to')) {
+            $query->whereBetween('deadline', [
+                $request->deadline_from,
+                $request->deadline_to
+            ]);
+        } elseif ($request->has('deadline_from')) {
+            $query->where('deadline', '>=', $request->deadline_from);
+        } elseif ($request->has('deadline_to')) {
+            $query->where('deadline', '<=', $request->deadline_to);
+        }
+
+        // Month filter
+        if ($request->has('month')) {
+            $month = date('m', strtotime($request->month));
+            $year = date('Y', strtotime($request->month));
+            $query->whereYear('date', $year)->whereMonth('date', $month);
+        }
+
+        // ========== AMOUNT FILTERS ==========
+        // Amount range
+        if ($request->has('amt_from') && $request->has('amt_to')) {
+            $query->whereBetween('amt', [
+                $request->amt_from,
+                $request->amt_to
+            ]);
+        } elseif ($request->has('amt_from')) {
+            $query->where('amt', '>=', $request->amt_from);
+        } elseif ($request->has('amt_to')) {
+            $query->where('amt', '<=', $request->amt_to);
+        }
+
+        // ========== DAY OF MONTH FILTER ==========
+        if ($request->has('day_of_month')) {
+            $query->where('day_of_month', $request->day_of_month);
+        }
+
+        // ========== SORTING ==========
+        // Default sorting
+        $sortBy = $request->has('sort_by') ? $request->sort_by : 'created_at';
+        $sortOrder = $request->has('sort_order') ? $request->sort_order : 'desc';
+
+        // Validate sort fields
+        $validSortFields = [
+            'reg_num', 'date', 'amt', 'created_at', 'updated_at', 
+            'client_name', 'mf_type'
+        ];
+
+        if (in_array($sortBy, $validSortFields)) {
+            if ($sortBy === 'client_name') {
+                $query->leftJoin('client', 'mf_entries.client_id', '=', 'client.id')
+                      ->orderBy('client.client_name', $sortOrder)
+                      ->select('mf_entries.*');
+            } else if ($sortBy === 'amt') {
+                $query->orderByRaw('CAST(amt AS DECIMAL(10,2)) ' . $sortOrder);
+            } else {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+        } else {
+            $query->latest();
+        }
+
+        // ========== PAGINATION ==========
+        $perPage = $request->has('per_page') ? min($request->per_page, 100) : 10;
+        $entries = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $entries,
+            'message' => 'MF entries retrieved successfully.',
+            'filters' => [
+                'applied' => $request->except(['page', 'per_page', 'sort_by', 'sort_order']),
+                'sort_by' => $sortBy,
+                'sort_order' => $sortOrder
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Failed to retrieve MF entries: ' . $e->getMessage(), [
+            'request' => $request->all(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to retrieve MF entries.',
+            'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+        ], 500);
     }
+}
 
     /**
      * Store a newly created resource in storage.
