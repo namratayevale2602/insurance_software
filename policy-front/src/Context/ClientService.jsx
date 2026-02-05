@@ -20,10 +20,19 @@ const ClientService = {
 
   createClient: (clientData) => axiosInstance.post("/createclient", clientData),
 
-  updateClient: (id, clientData) =>
-    axiosInstance.put(`/updateclient/${id}`, clientData),
+  // Update delete methods to accept password
+  deleteClient: (id, password) =>
+    axiosInstance.delete(`/deleteclient/${id}`, {
+      data: { password },
+    }),
 
-  deleteClient: (id) => axiosInstance.delete(`/deleteclient/${id}`),
+  // Add force delete endpoint
+  forceDeleteClient: (id, password) =>
+    axiosInstance.delete(`/deleteclient/${id}/force`, {
+      data: { password },
+    }),
+
+  // deleteClient: (id) => axiosInstance.delete(`/deleteclient/${id}`),
 
   getAllCities: () => axiosInstance.get("/cities"),
 

@@ -4,7 +4,7 @@ import axios from "axios";
 
 // Create main API instance
 const api = axios.create({
-  baseURL: "http://localhost:8000/api",
+  baseURL: "https://insurance-back.demovoting.com/api",
   withCredentials: true, // CRITICAL for cookies
   headers: {
     "Content-Type": "application/json",
@@ -15,7 +15,7 @@ const api = axios.create({
 
 // Create CSRF-specific instance
 const csrfApi = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: "https://insurance-back.demovoting.com",
   withCredentials: true,
 });
 
@@ -33,7 +33,7 @@ api.interceptors.request.use(
   (error) => {
     console.error("❌ Request Interceptor Error:", error);
     return Promise.reject(error);
-  }
+  },
 );
 
 // Enhanced response interceptor
@@ -85,17 +85,17 @@ api.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 // Cookie status checker
 const checkCookieStatus = () => {
   const cookies = document.cookie.split(";");
   const accessToken = cookies.find((cookie) =>
-    cookie.trim().startsWith("access_token=")
+    cookie.trim().startsWith("access_token="),
   );
   const refreshToken = cookies.find((cookie) =>
-    cookie.trim().startsWith("refresh_token=")
+    cookie.trim().startsWith("refresh_token="),
   );
 
   console.log("🔍 Cookie Status Check:", {
@@ -274,8 +274,8 @@ const useAuthStore = create(
         isAuthenticated: state.isAuthenticated,
         csrfInitialized: state.csrfInitialized,
       }),
-    }
-  )
+    },
+  ),
 );
 
 export default useAuthStore;

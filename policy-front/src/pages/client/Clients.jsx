@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import ClientService from "../../Context/ClientService";
 import ClientForm from "./ClientForm";
+import PasswordConfirmModal from "./PasswordConfirmModal";
 import {
   Plus,
   Edit,
@@ -32,6 +33,7 @@ import {
   Cake,
   Heart,
   Gift,
+  AlertTriangle,
   X,
   Bell,
 } from "lucide-react";
@@ -51,6 +53,10 @@ const Clients = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showForceDeleteModal, setShowForceDeleteModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [deleteType, setDeleteType] = useState(""); // 'soft' or 'force'
   const [filters, setFilters] = useState({
     // Search filters
     search: "",
@@ -241,16 +247,32 @@ const Clients = () => {
     fetchData(1, value);
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this client?")) {
-      try {
-        await ClientService.deleteClient(id);
-        fetchData(currentPage);
-        alert("Client deleted successfully");
-      } catch (error) {
-        console.error("Error deleting client:", error);
-        alert("Error deleting client");
+  const handleDelete = (client, type = "soft") => {
+    setSelectedClient(client);
+    setDeleteType(type);
+    if (type === "force") {
+      setShowForceDeleteModal(true);
+    } else {
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmDelete = async (password) => {
+    try {
+      if (deleteType === "soft") {
+        await ClientService.deleteClient(selectedClient.id, password);
+        alert("Client soft deleted successfully");
+      } else {
+        await ClientService.forceDeleteClient(selectedClient.id, password);
+        alert("Client permanently deleted successfully");
       }
+      fetchData(currentPage);
+      setSelectedClient(null);
+      setDeleteType("");
+    } catch (error) {
+      const errorMessage =
+        error.response?.data?.message || "Error deleting client";
+      throw new Error(errorMessage);
     }
   };
 
@@ -1446,7 +1468,7 @@ const Clients = () => {
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleDelete(client.id)}
+                            onClick={() => handleDelete(client)}
                             className="text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded"
                             title="Delete"
                           >
@@ -1516,6 +1538,36 @@ const Clients = () => {
                                   >
                                     <Car className="h-4 w-4" />
                                     Create MF Entry
+                                  </button>
+                                  <div className="border-t border-gray-200 my-1"></div>
+
+                                  {/* Delete Options */}
+                                  <div className="px-4 py-2">
+                                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                                      Delete Options
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(client, "soft");
+                                      setActionMenu(null);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-700 hover:bg-orange-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    Soft Delete (Archive)
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      handleDelete(client, "force");
+                                      setActionMenu(null);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
+                                  >
+                                    <AlertTriangle className="h-4 w-4" />
+                                    Permanent Delete
                                   </button>
                                   <div className="border-t border-gray-200 my-1"></div>
                                   <button
@@ -1614,6 +1666,30 @@ const Clients = () => {
           </>
         )}
       </div>
+      {/* Password Confirmation Modals */}
+      <PasswordConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSelectedClient(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Confirm Soft Delete"
+        message="This will archive the client. They can be restored later."
+        type="delete"
+      />
+
+      <PasswordConfirmModal
+        isOpen={showForceDeleteModal}
+        onClose={() => {
+          setShowForceDeleteModal(false);
+          setSelectedClient(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Confirm Permanent Delete"
+        message="This will permanently delete the client and all associated data. This action cannot be undone."
+        type="forceDelete"
+      />
     </div>
   );
 };

@@ -153,7 +153,7 @@ const GicForm = ({ mode = "create" }) => {
         if (allResponse.data.success) {
           const allEntries = allResponse.data.data.data || [];
           const gicData = allEntries.find(
-            (entry) => entry.id.toString() === id.toString()
+            (entry) => entry.id.toString() === id.toString(),
           );
 
           if (gicData) {
@@ -249,7 +249,7 @@ const GicForm = ({ mode = "create" }) => {
       if (response.data.success) {
         const allClients = response.data.data.data || response.data.data;
         const client = allClients.find(
-          (c) => c.id.toString() === clientId.toString()
+          (c) => c.id.toString() === clientId.toString(),
         );
         if (client) {
           setClientInfo({
@@ -283,14 +283,14 @@ const GicForm = ({ mode = "create" }) => {
         branchesRes,
       ] = await Promise.all([
         GicService.getAllClients({ per_page: 50 }), // Remove the .catch() part
-        GicService.getDropdownOptions("vehicle_types"),
-        GicService.getDropdownOptions("vehicles"),
-        GicService.getDropdownOptions("nonmotor_policy_types"),
-        GicService.getDropdownOptions("nonmotor_policy_subtype"),
-        GicService.getDropdownOptions("advisers"),
-        GicService.getDropdownOptions("insurance_companies"),
-        GicService.getDropdownOptions("bank"),
-        GicService.getDropdownOptions("branch"),
+        GicService.getDropdownOptions("vehicle_type"),
+        GicService.getDropdownOptions("vehicle_id"),
+        GicService.getDropdownOptions("nonmotor_policy_type_id"),
+        GicService.getDropdownOptions("nonmotor_policy_subtype_id"),
+        GicService.getDropdownOptions("adviser_name_id"),
+        GicService.getDropdownOptions("insurance_company_id"),
+        GicService.getDropdownOptions("bank_name_id"),
+        GicService.getDropdownOptions("branch_name_id"),
       ]);
 
       setDropdowns({
@@ -380,7 +380,7 @@ const GicForm = ({ mode = "create" }) => {
     ) {
       const endDate = calculateEndDate(
         formData.start_dt,
-        formData.policy_duration
+        formData.policy_duration,
       );
       setFormData((prev) => ({ ...prev, end_dt: endDate }));
     }
@@ -549,7 +549,7 @@ const GicForm = ({ mode = "create" }) => {
           const firstErrorField = Object.keys(newErrors)[0];
           setTimeout(() => {
             const errorElement = document.querySelector(
-              `[name="${firstErrorField}"]`
+              `[name="${firstErrorField}"]`,
             );
             if (errorElement) {
               errorElement.scrollIntoView({
@@ -1414,8 +1414,8 @@ const GicForm = ({ mode = "create" }) => {
                 {loading
                   ? "Saving..."
                   : isEditMode
-                  ? "Update GIC Entry"
-                  : "Create GIC Entry"}
+                    ? "Update GIC Entry"
+                    : "Create GIC Entry"}
               </button>
             </div>
           </div>

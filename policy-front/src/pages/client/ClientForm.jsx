@@ -147,9 +147,15 @@ const ClientForm = ({ mode = "create", client: initialClient = null }) => {
   // Add this function after fetchCities function:
   const fetchInquiryOptions = async () => {
     try {
-      const response = await ClientService.getDropdownOptions("inqueries");
+      const response = await ClientService.getDropdownOptions("inquery_for"); // Use the exact category name
       if (response.data.success) {
-        setInquiryOptions(response.data.data || []);
+        // Filter options for the specific category if needed
+        const inquiryOptions = response.data.data.filter(
+          (option) => option.category === "inquery_for",
+        );
+        setInquiryOptions(inquiryOptions || []);
+      } else {
+        console.error("Failed to fetch inquiry options:", response.data);
       }
     } catch (error) {
       console.error("Error fetching inquiry options:", error);
@@ -702,8 +708,8 @@ const ClientForm = ({ mode = "create", client: initialClient = null }) => {
                 {loading
                   ? "Saving..."
                   : isEditMode
-                  ? "Update Client"
-                  : "Create Client"}
+                    ? "Update Client"
+                    : "Create Client"}
               </button>
             </div>
           </div>

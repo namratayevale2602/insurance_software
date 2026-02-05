@@ -47,6 +47,7 @@ Route::middleware([\App\Http\Middleware\SanctumCookieAuth::class])->group(functi
     Route::post('/createclient', [ClientController::class, 'store']);
     Route::put('/updateclient/{id}', [ClientController::class, 'update']);
     Route::delete('/deleteclient/{id}', [ClientController::class, 'destroy']);
+    Route::delete('deleteclient/{id}/force', [ClientController::class, 'forceDestroy']);
     Route::get('/clients', [ClientController::class, 'index']);
     Route::get('/clients/{id}', [ClientController::class, 'show']);
 

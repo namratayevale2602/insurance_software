@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class ClientController extends Controller
 {
@@ -461,9 +462,14 @@ public function index(Request $request)
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
 {
     try {
+        // Validate the password
+        $request->validate([
+            'password' => 'required|string'
+        ]);
+
         DB::beginTransaction();
 
         $client = Client::find($id);
@@ -475,7 +481,26 @@ public function index(Request $request)
             ], 404);
         }
 
-        // Use soft delete instead of force delete
+        // Get the authenticated user (assuming you're using auth middleware)
+        $user = auth()->user();
+        
+        // Check if user is admin and password matches
+        if (!$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only admins can delete clients.'
+            ], 403);
+        }
+
+        // Verify the password
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid password.'
+            ], 401);
+        }
+
+        // Use soft delete
         $client->delete();
 
         DB::commit();
@@ -485,6 +510,12 @@ public function index(Request $request)
             'message' => 'Client soft deleted successfully.'
         ]);
 
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error.',
+            'errors' => $e->errors()
+        ], 422);
     } catch (\Exception $e) {
         DB::rollBack();
         Log::error('Client delete error: ' . $e->getMessage());
@@ -497,9 +528,14 @@ public function index(Request $request)
 }
 
 // Add force delete method for permanent deletion
-public function forceDestroy($id)
+public function forceDestroy(Request $request, $id)
 {
     try {
+        // Validate the password
+        $request->validate([
+            'password' => 'required|string'
+        ]);
+
         DB::beginTransaction();
 
         $client = Client::withTrashed()->find($id);
@@ -511,6 +547,26 @@ public function forceDestroy($id)
             ], 404);
         }
 
+        // Get the authenticated user (assuming you're using auth middleware)
+        $user = auth()->user();
+        
+        // Check if user is admin and password matches
+        if (!$user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized. Only admins can permanently delete clients.'
+            ], 403);
+        }
+
+        // Verify the password
+        if (!Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid password.'
+            ], 401);
+        }
+
+        // Permanent delete
         $client->forceDelete();
 
         DB::commit();
@@ -520,6 +576,12 @@ public function forceDestroy($id)
             'message' => 'Client permanently deleted successfully.'
         ]);
 
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error.',
+            'errors' => $e->errors()
+        ], 422);
     } catch (\Exception $e) {
         DB::rollBack();
         Log::error('Client force delete error: ' . $e->getMessage());
